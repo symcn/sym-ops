@@ -67,14 +67,25 @@ func TestRegisterHTTPRoute(t *testing.T) {
 		return
 	}
 
-	RegisterHTTPHandler(http.Handle)
-	_, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+	server := &http.Server{
+		Addr: ":8080",
+	}
+	mux := http.NewServeMux()
+	RegisterHTTPHandler(func(pattern string, handler http.Handler) {
+		mux.Handle(pattern, handler)
+	})
+	server.Handler = mux
+	defer func() {
+		server.Shutdown(context.Background())
+	}()
 
 	go func() {
-		if err := http.ListenAndServe(":8080", nil); err != nil {
-			t.Error(err)
+		if err := server.ListenAndServe(); err != nil {
+			if !strings.EqualFold(err.Error(), "http: Server closed") {
+				t.Error(err)
+			}
 		}
+		t.Log("http shutdown")
 	}()
 
 	interval := time.Millisecond * 100
