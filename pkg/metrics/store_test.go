@@ -245,6 +245,14 @@ func Test_fullName(t *testing.T) {
 			},
 			wantFullName: "reconcile.k1.",
 		},
+		{
+			name: "case 3",
+			args: args{
+				typ:    "reconcile",
+				labels: nil,
+			},
+			wantFullName: "reconcile",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

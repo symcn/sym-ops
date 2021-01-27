@@ -52,6 +52,8 @@ func TestNewMetrics(t *testing.T) {
 	metrics.Counter("counter").Add(1)
 	metrics.Gauge("gauge").Add(1)
 	metrics.Histogram("histogram").Observe(1)
+	metrics.Counter("repeat").Add(1)
+	metrics.Counter("repeat").Add(1)
 }
 
 func TestRegisterHTTPRoute(t *testing.T) {
@@ -67,25 +69,9 @@ func TestRegisterHTTPRoute(t *testing.T) {
 		return
 	}
 
-	server := &http.Server{
-		Addr: ":8080",
-	}
-	mux := http.NewServeMux()
-	RegisterHTTPHandler(func(pattern string, handler http.Handler) {
-		mux.Handle(pattern, handler)
-	})
-	server.Handler = mux
+	server := startHTTPPrometheus(t)
 	defer func() {
 		server.Shutdown(context.Background())
-	}()
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			if !strings.EqualFold(err.Error(), "http: Server closed") {
-				t.Error(err)
-			}
-		}
-		t.Log("http shutdown")
 	}()
 
 	interval := time.Millisecond * 100
@@ -128,6 +114,27 @@ func TestRegisterHTTPRoute(t *testing.T) {
 		t.Error("histogram not register")
 		return
 	}
+}
+
+// startHTTPPrometheus start http server with prometheus route
+func startHTTPPrometheus(t *testing.T) *http.Server {
+	server := &http.Server{
+		Addr: ":8080",
+	}
+	mux := http.NewServeMux()
+	RegisterHTTPHandler(func(pattern string, handler http.Handler) {
+		mux.Handle(pattern, handler)
+	})
+	server.Handler = mux
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			if !strings.EqualFold(err.Error(), "http: Server closed") {
+				t.Error(err)
+			}
+		}
+		t.Log("http shutdown")
+	}()
+	return server
 }
 
 func request() (data string, err error) {

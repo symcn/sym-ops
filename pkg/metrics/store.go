@@ -3,12 +3,14 @@ package metrics
 import (
 	"fmt"
 	"regexp"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/symcn/sym-ops/pkg/types"
+	"k8s.io/klog/v2"
 )
 
 // MaxLabelCount max label count limit
@@ -16,7 +18,7 @@ const MaxLabelCount = 20
 
 var (
 	defaultEndpoint = "/metrics"
-	defaultBuckets  = []float64{0.5, 0.9, 0.95, 0.99}
+	defaultBuckets  = []float64{}
 	defaultStore    *store
 	// ErrLabelCountExceeded error label count exceeded
 	ErrLabelCountExceeded = fmt.Errorf("label count exceeded, max is %d", MaxLabelCount)
@@ -65,6 +67,15 @@ func (m *metrics) Histogram(key string) prometheus.Histogram {
 	return histogram
 }
 
+func (m *metrics) Summary(key string) prometheus.Summary {
+	summary := prometheus.NewSummary(prometheus.SummaryOpts{
+		Name: flattenKey(m.prefix + key),
+		// Buckets: m.buckets,
+	})
+	m.registerPrometheus(summary)
+	return summary
+}
+
 func (m *metrics) UnregisterAll() {
 	for _, col := range m.col {
 		prometheus.Unregister(col)
@@ -72,6 +83,12 @@ func (m *metrics) UnregisterAll() {
 }
 
 func (m *metrics) registerPrometheus(c prometheus.Collector) {
+	defer func() {
+		if r := recover(); r != nil {
+			klog.Errorf("registry prometheus failed %v", r)
+			debug.PrintStack()
+		}
+	}()
 	prometheus.MustRegister(c)
 	m.col = append(m.col, c)
 }
@@ -107,8 +124,11 @@ func sortedLabels(labels map[string]string) (keys, values []string) {
 }
 
 func fullName(typ string, labels map[string]string) (fullName string) {
-	keys, values := sortedLabels(labels)
+	if len(labels) == 0 {
+		return typ
+	}
 
+	keys, values := sortedLabels(labels)
 	pair := make([]string, 0, len(keys))
 	for i := 0; i < len(keys); i++ {
 		pair = append(pair, keys[i]+"."+values[i])

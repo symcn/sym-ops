@@ -14,10 +14,17 @@ import (
 	"k8s.io/klog"
 )
 
+// ratelimit queue set
+var (
+	RateLimitTimeInterval = time.Second * 1
+	RateLimitTimeMax      = time.Second * 60
+	RateLimit             = 10
+	RateBurst             = 100
+)
+
 // Queue wrapper workqueue
 type Queue struct {
 	name        string
-	namespace   []string
 	threadiness int
 	gotIntervel time.Duration
 	workqueue   workqueue.RateLimitingInterface
@@ -25,7 +32,8 @@ type Queue struct {
 	Do          types.Reconciler
 }
 
-func NewQueue(reconcile types.Reconciler, name string, threadiness int, gotInterval time.Duration, namespace ...string) (types.WorkQueue, error) {
+// NewQueue build queue
+func NewQueue(reconcile types.Reconciler, name string, threadiness int, gotInterval time.Duration) (types.WorkQueue, error) {
 	stats, err := buildStats(name)
 	if err != nil {
 		return nil, err
@@ -33,18 +41,18 @@ func NewQueue(reconcile types.Reconciler, name string, threadiness int, gotInter
 
 	return &Queue{
 		name:        name,
-		namespace:   namespace,
 		threadiness: threadiness,
 		gotIntervel: gotInterval,
 		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.NewMaxOfRateLimiter(
-			workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 60*time.Second),
-			&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(10), 100)},
+			workqueue.NewItemExponentialFailureRateLimiter(RateLimitTimeInterval, RateLimitTimeMax),
+			&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(RateLimit), RateBurst)},
 		), name),
 		stats: stats,
 		Do:    reconcile,
 	}, nil
 }
 
+// Add add obj to queue
 func (q *Queue) Add(item interface{}) {
 	q.workqueue.Add(item)
 }
@@ -58,15 +66,13 @@ func (q *Queue) Run(ctx context.Context) error {
 	defer q.workqueue.ShutDown()
 
 	// Start the informer factories to begin populating the informer caches
-	klog.Info("Starting WrapQueue compoment")
-
-	klog.Info("Starting workers")
+	klog.Infof("Starting %s WrapQueue workers", q.name)
 	// Launch two workers to process Foo resources
 	for i := 0; i < q.threadiness; i++ {
 		go wait.UntilWithContext(ctx, q.runWorker, q.gotIntervel)
 	}
 
-	klog.Info("Started WrapQueue workers")
+	klog.Infof("Started %s WrapQueue workers", q.name)
 	<-ctx.Done()
 	klog.Info("Shutting down WrapQueue")
 	return nil
@@ -109,6 +115,7 @@ func (q *Queue) processNextWorkItem() bool {
 			return nil
 		}
 
+		// invoke Reconcile
 		requeue, after, err := q.Do.Reconcile(req)
 		if err != nil {
 			q.workqueue.AddRateLimited(req)

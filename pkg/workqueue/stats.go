@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	metricType         = "workqueue"
+	metricTypePre      = "workqueue_"
 	workqueueLabelName = "name"
 )
 
@@ -32,7 +32,7 @@ type stats struct {
 }
 
 func buildStats(name string) (*stats, error) {
-	metric, err := metrics.NewMetrics(metricType, map[string]string{workqueueLabelName: name}, nil)
+	metric, err := metrics.NewMetrics(metricTypePre+name, nil, nil)
 	if err != nil {
 		return nil, err
 	}
