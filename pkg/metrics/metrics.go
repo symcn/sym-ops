@@ -20,7 +20,9 @@ func NewMetrics(typ string, labels map[string]string, buckets []float64) (types.
 	if col, ok := defaultStore.metrics[typ]; ok {
 		return col, nil
 	}
-
+	if len(buckets) == 0 {
+		buckets = defaultBuckets
+	}
 	stats := &metrics{
 		typ:     typ,
 		prefix:  fullName(typ, labels) + ".",

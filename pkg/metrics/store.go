@@ -16,6 +16,7 @@ const MaxLabelCount = 20
 
 var (
 	defaultEndpoint = "/metrics"
+	defaultBuckets  = []float64{0.5, 0.9, 0.95, 0.99}
 	defaultStore    *store
 	// ErrLabelCountExceeded error label count exceeded
 	ErrLabelCountExceeded = fmt.Errorf("label count exceeded, max is %d", MaxLabelCount)
