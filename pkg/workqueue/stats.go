@@ -32,7 +32,7 @@ type stats struct {
 }
 
 func buildStats(name string) (*stats, error) {
-	metric, err := metrics.NewMetrics(metricTypePre+name, nil, nil)
+	metric, err := metrics.NewMetrics(metricTypePre+name, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func buildStats(name string) (*stats, error) {
 		UnExpectedObj:     metric.Counter(UnExpectedObjTotal),
 		ReconcileSucc:     metric.Counter(ReconcileSuccTotal),
 		ReconcileFail:     metric.Counter(ReconcileFailTotal),
-		ReconcileDuration: metric.Histogram(ReconcileTimeDuration),
+		ReconcileDuration: metric.Summary(ReconcileTimeDuration, nil),
 		RequeueAfter:      metric.Counter(RequeueAfterTotal),
 		RequeueRateLimit:  metric.Counter(RequeueRateLimitTotal),
 	}, nil

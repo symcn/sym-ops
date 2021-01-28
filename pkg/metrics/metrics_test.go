@@ -35,7 +35,7 @@ func TestNewMetrics(t *testing.T) {
 		"k19": "v19",
 		"k20": "v20",
 		"k21": "v21",
-	}, nil)
+	})
 	if err == nil {
 		t.Error("max label should exception")
 		return
@@ -43,7 +43,7 @@ func TestNewMetrics(t *testing.T) {
 
 	metrics, err = NewMetrics("sym-ops", map[string]string{
 		"k1": "v1",
-	}, nil)
+	})
 	if err != nil {
 		t.Error(err)
 		return
@@ -51,7 +51,8 @@ func TestNewMetrics(t *testing.T) {
 
 	metrics.Counter("counter").Add(1)
 	metrics.Gauge("gauge").Add(1)
-	metrics.Histogram("histogram").Observe(1)
+	metrics.Histogram("histogram", nil).Observe(1)
+	metrics.Histogram("summary", nil).Observe(1)
 	metrics.Counter("repeat").Add(1)
 	metrics.Counter("repeat").Add(1)
 }
@@ -63,7 +64,7 @@ func TestRegisterHTTPRoute(t *testing.T) {
 
 	metrics, err := NewMetrics("sym-ops", map[string]string{
 		"k1": "v1",
-	}, nil)
+	})
 	if err != nil {
 		t.Error(err)
 		return
@@ -103,7 +104,7 @@ func TestRegisterHTTPRoute(t *testing.T) {
 		return
 	}
 
-	metrics.Histogram("histogram").Observe(1)
+	metrics.Histogram("histogram", nil).Observe(1)
 	time.Sleep(interval)
 	body, err = request()
 	if err != nil {

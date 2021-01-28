@@ -8,6 +8,9 @@ import (
 )
 
 func Test_metrics_Counter(t *testing.T) {
+	m := buildMetrics()
+	defer m.UnregisterAll()
+
 	type args struct {
 		key string
 	}
@@ -15,20 +18,26 @@ func Test_metrics_Counter(t *testing.T) {
 		name string
 		m    *metrics
 		args args
-		want prometheus.Counter
 	}{
-		// TODO: Add test cases.
+		{
+			name: "case 1",
+			m:    m,
+			args: args{
+				key: "counter",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.m.Counter(tt.args.key); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("metrics.Counter() = %v, want %v", got, tt.want)
-			}
+			tt.m.Counter(tt.args.key)
 		})
 	}
 }
 
 func Test_metrics_Gauge(t *testing.T) {
+	m := buildMetrics()
+	defer m.UnregisterAll()
+
 	type args struct {
 		key string
 	}
@@ -36,46 +45,110 @@ func Test_metrics_Gauge(t *testing.T) {
 		name string
 		m    *metrics
 		args args
-		want prometheus.Gauge
 	}{
-		// TODO: Add test cases.
+		{
+			name: "case 1",
+			m:    m,
+			args: args{
+				key: "gauge",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.m.Gauge(tt.args.key); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("metrics.Gauge() = %v, want %v", got, tt.want)
-			}
+			tt.m.Gauge(tt.args.key)
 		})
 	}
 }
 
 func Test_metrics_Histogram(t *testing.T) {
+	m := buildMetrics()
+	defer m.UnregisterAll()
+
 	type args struct {
-		key string
+		key     string
+		buckets []float64
 	}
 	tests := []struct {
 		name string
 		m    *metrics
 		args args
-		want prometheus.Histogram
 	}{
-		// TODO: Add test cases.
+		{
+			name: "case 1",
+			m:    m,
+			args: args{
+				key:     "histogram",
+				buckets: nil,
+			},
+		},
+		{
+			name: "case 2",
+			m:    m,
+			args: args{
+				key:     "histogram",
+				buckets: []float64{1, 2, 3},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.m.Histogram(tt.args.key); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("metrics.Histogram() = %v, want %v", got, tt.want)
-			}
+			tt.m.Histogram(tt.args.key, tt.args.buckets)
+		})
+	}
+}
+
+func Test_metrics_Summary(t *testing.T) {
+	m := buildMetrics()
+	defer m.UnregisterAll()
+
+	type args struct {
+		key        string
+		objectives map[float64]float64
+	}
+	tests := []struct {
+		name string
+		m    *metrics
+		args args
+	}{
+		{
+			name: "case 1",
+			m:    m,
+			args: args{
+				key:        "summary",
+				objectives: nil,
+			},
+		},
+		{
+			name: "case 2",
+			m:    m,
+			args: args{
+				key: "summary",
+				objectives: map[float64]float64{
+					0.5: 0.05,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.m.Summary(tt.args.key, tt.args.objectives)
 		})
 	}
 }
 
 func Test_metrics_UnregisterAll(t *testing.T) {
+	m := buildMetrics()
+	defer m.UnregisterAll()
+
 	tests := []struct {
 		name string
 		m    *metrics
 	}{
-		// TODO: Add test cases.
+		{
+			name: "case 1",
+			m:    m,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

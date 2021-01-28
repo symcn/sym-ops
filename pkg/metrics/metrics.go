@@ -9,7 +9,7 @@ import (
 )
 
 // NewMetrics returns a metrics
-func NewMetrics(typ string, labels map[string]string, buckets []float64) (types.Metrics, error) {
+func NewMetrics(typ string, labels map[string]string) (types.Metrics, error) {
 	if len(labels) > MaxLabelCount {
 		return nil, ErrLabelCountExceeded
 	}
@@ -20,14 +20,10 @@ func NewMetrics(typ string, labels map[string]string, buckets []float64) (types.
 	if col, ok := defaultStore.metrics[typ]; ok {
 		return col, nil
 	}
-	if len(buckets) == 0 {
-		buckets = defaultBuckets
-	}
 	stats := &metrics{
-		typ:     typ,
-		prefix:  fullName(typ, labels) + ".",
-		buckets: buckets,
-		col:     []prometheus.Collector{},
+		typ:    typ,
+		prefix: fullName(typ, labels) + ".",
+		col:    []prometheus.Collector{},
 	}
 	defaultStore.metrics[typ] = stats
 	return stats, nil

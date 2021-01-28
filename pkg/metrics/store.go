@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/symcn/sym-ops/pkg/types"
@@ -17,9 +18,10 @@ import (
 const MaxLabelCount = 20
 
 var (
-	defaultEndpoint = "/metrics"
-	defaultBuckets  = []float64{}
-	defaultStore    *store
+	defaultEndpoint          = "/metrics"
+	defaultSummaryObjectives = map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.95: 0.001, 0.99: 0.001}
+	defaultSummaryMaxAge     = time.Minute * 1
+	defaultStore             *store
 	// ErrLabelCountExceeded error label count exceeded
 	ErrLabelCountExceeded = fmt.Errorf("label count exceeded, max is %d", MaxLabelCount)
 )
@@ -30,10 +32,9 @@ type store struct {
 }
 
 type metrics struct {
-	typ     string
-	prefix  string
-	buckets []float64
-	col     []prometheus.Collector
+	typ    string
+	prefix string
+	col    []prometheus.Collector
 }
 
 func init() {
@@ -58,19 +59,24 @@ func (m *metrics) Gauge(key string) prometheus.Gauge {
 	return gauge
 }
 
-func (m *metrics) Histogram(key string) prometheus.Histogram {
+func (m *metrics) Histogram(key string, buckets []float64) prometheus.Histogram {
 	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    flattenKey(m.prefix + key),
-		Buckets: m.buckets,
+		Buckets: buckets,
 	})
 	m.registerPrometheus(histogram)
 	return histogram
 }
 
-func (m *metrics) Summary(key string) prometheus.Summary {
+func (m *metrics) Summary(key string, objectives map[float64]float64) prometheus.Summary {
+	if len(objectives) == 0 {
+		objectives = defaultSummaryObjectives
+	}
+
 	summary := prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: flattenKey(m.prefix + key),
-		// Buckets: m.buckets,
+		Name:       flattenKey(m.prefix + key),
+		Objectives: objectives,
+		MaxAge:     defaultSummaryMaxAge,
 	})
 	m.registerPrometheus(summary)
 	return summary
