@@ -31,3 +31,7 @@ func TestBuildClusterCfgInfo(t *testing.T) {
 		return
 	}
 }
+
+func TestBuildDefaultClusterCfgInfo(t *testing.T) {
+	BuildDefaultClusterCfgInfo("meta")
+}

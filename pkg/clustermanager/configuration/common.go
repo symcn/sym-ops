@@ -34,3 +34,9 @@ func (c *clusterCfgInfo) GetKubeConfig() string {
 func (c *clusterCfgInfo) GetKubeContext() string {
 	return c.kubeContext
 }
+
+// BuildDefaultClusterCfgInfo BuildDefaultClusterCfgInfo with default Kubernetes configuration
+// use default ~/.kube/config or Kubernetes cluster internal config
+func BuildDefaultClusterCfgInfo(name string) types.ClusterCfgInfo {
+	return BuildClusterCfgInfo(name, types.KubeConfigTypeFile, "", "")
+}
