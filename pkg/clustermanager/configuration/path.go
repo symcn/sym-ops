@@ -1,4 +1,4 @@
-package clusterconfiguration
+package configuration
 
 import (
 	"fmt"
