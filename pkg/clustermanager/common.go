@@ -78,16 +78,20 @@ func buildKubeInterface(restcfg *rest.Config) (kubernetes.Interface, error) {
 	return clientSet, nil
 }
 
-func healthRequestWithTimeout(kubeInterface kubernetes.Interface, timeout time.Duration) (bool, error) {
-	// Always return false, when the timeout too small, so must more than 100ms
-	if timeout < time.Millisecond*100 {
+func healthRequestWithTimeout(restCli rest.Interface, timeout time.Duration) (bool, error) {
+	if restCli == nil {
+		return false, errors.New("health request rest client is nil")
+	}
+
+	// Always return false, when the timeout too small, so must large than 100ms
+	if timeout < minExectimeout {
 		return false, errors.New("health request timeout must more than 100ms")
 	}
 
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
 	defer cancel()
 
-	body, err := kubeInterface.Discovery().RESTClient().Get().AbsPath("/healthz").Do(ctx).Raw()
+	body, err := restCli.Get().AbsPath("/healthz").Do(ctx).Raw()
 	if err != nil {
 		return false, err
 	}

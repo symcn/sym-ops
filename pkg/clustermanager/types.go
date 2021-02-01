@@ -17,6 +17,15 @@ var (
 	defaultClusterName         = "meta"
 	defaultQPS                 = 100
 	defaultBurst               = 120
+
+	minExectimeout = time.Millisecond * 100
+)
+
+var (
+	// ErrClientNotExist client not exist error
+	ErrClientNotExist = "cluster %s not exist"
+	// ErrClientNotConnected client disconnected
+	ErrClientNotConnected = "cluster %s disconnected"
 )
 
 type option struct {

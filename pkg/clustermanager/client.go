@@ -19,9 +19,11 @@ import (
 type client struct {
 	*ClientConfig
 
-	stopCh    chan struct{}
-	connected bool
-	started   bool
+	stopCh         chan struct{}
+	connected      bool
+	started        bool
+	internalCancel context.CancelFunc
+	informerList   []rtcache.Informer
 
 	KubeRestConfig *rest.Config
 	KubeInterface  kubernetes.Interface
@@ -36,6 +38,7 @@ func NewMingleClient(cfg *ClientConfig) (types.MingleClient, error) {
 	cli := &client{
 		ClientConfig: cfg,
 		stopCh:       make(chan struct{}, 0),
+		informerList: []rtcache.Informer{},
 	}
 
 	// 1. pre check
@@ -64,6 +67,10 @@ func (c *client) preCheck() error {
 	// cluster scheme must not empty
 	if c.Scheme == nil {
 		return errors.New("scheme is empty")
+	}
+
+	if c.ExecTimeout < minExectimeout {
+		return fmt.Errorf("exectimeout should lager than 100ms, too small will return timeout mostly")
 	}
 
 	return nil
@@ -104,7 +111,7 @@ func (c *client) initialization() error {
 
 func (c *client) autoHealthCheck() {
 	handler := func() {
-		ok, err := healthRequestWithTimeout(c.KubeInterface, c.ExecTimeout)
+		ok, err := healthRequestWithTimeout(c.KubeInterface.Discovery().RESTClient(), c.ExecTimeout)
 		if err != nil {
 			klog.Errorf("cluster %s check healthy failed %+v", c.ClusterCfg.GetName(), err)
 		}
@@ -142,6 +149,7 @@ func (c *client) Start(ctx context.Context) error {
 	c.started = true
 
 	var err error
+	ctx, c.internalCancel = context.WithCancel(ctx)
 
 	go func() {
 		err = c.CtrlRtManager.Start(ctx)
@@ -149,6 +157,7 @@ func (c *client) Start(ctx context.Context) error {
 			klog.Errorf("start cluster %s error %+v", c.ClusterCfg.GetName(), err)
 			close(c.stopCh)
 		}
+		klog.Warningf("cluster %s stoped.", c.ClusterCfg.GetName())
 	}()
 
 	// health check
@@ -162,7 +171,20 @@ func (c *client) Start(ctx context.Context) error {
 	}
 }
 
+// Stop stop mingle client, just use with multiclient, not recommend use direct
+func (c *client) Stop() {
+	if c.internalCancel == nil {
+		return
+	}
+	c.internalCancel()
+}
+
 // IsConnected return connected status
 func (c *client) IsConnected() bool {
 	return c.connected
+}
+
+// GetClusterCfgInfo returns cluster configuration info
+func (c *client) GetClusterCfgInfo() types.ClusterCfgInfo {
+	return c.ClusterCfg
 }

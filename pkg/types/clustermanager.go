@@ -16,6 +16,11 @@ import (
 // such as QPS Burst
 type SetKubeRestConfig func(config *rest.Config)
 
+// BeforeHandle before Start exec this handle
+// registry informer, when multi cluster manager add new cluster
+// should record before handle, returns error will not start
+type BeforeHandle func(cli MingleClient) error
+
 // MingleClient mingle client
 // wrap controller-runtime manager
 type MingleClient interface {
@@ -31,8 +36,14 @@ type MingleClient interface {
 	// Returns an error if there is an error starting
 	Start(ctx context.Context) error
 
+	// Stop stop mingle client, just use with multiclient, not recommend use direct
+	Stop()
+
 	// IsConnected return connected status
 	IsConnected() bool
+
+	// GetClusterCfgInfo returns cluster configuration info
+	GetClusterCfgInfo() ClusterCfgInfo
 }
 
 // ResourceOperate Kubernetes resource CRUD operate.
@@ -48,13 +59,23 @@ type ResourceOperate interface {
 	//	between different handlers.
 	AddResourceEventHandler(obj rtclient.Object, handler cache.ResourceEventHandler) error
 
-	//HasSynced return true if all informers underlying store has synced
+	// IndexFields adds an index with the given field name on the given object type
+	// by using the given function to extract the value for that field.  If you want
+	// compatibility with the Kubernetes API server, only return one key, and only use
+	// fields that the API server supports.  Otherwise, you can return multiple keys,
+	// and "equality" in the field selector means that at least one key matches the value.
+	// The FieldIndexer will automatically take care of indexing over namespace
+	// and supporting efficient all-namespace queries.
+	SetIndexField(obj rtclient.Object, field string, extractValue rtclient.IndexerFunc) error
+
+	// HasSynced return true if all informers underlying store has synced
+	// !import if informerlist is empty, will return true
 	HasSynced() bool
 
 	// Get retrieves an obj for the given object key from the Kubernetes Cluster with timeout.
 	// obj must be a struct pointer so that obj can be updated with the response
 	// returned by the Server.
-	Get(key ktypes.NamespacedName, obj rtclient.Object)
+	Get(key ktypes.NamespacedName, obj rtclient.Object) error
 
 	// Create saves the object obj in the Kubernetes cluster with timeout.
 	Create(obj rtclient.Object, opts ...rtclient.CreateOption) error
@@ -99,4 +120,49 @@ type ControllerRuntimeManagerResource interface {
 
 	// GetCtrlRtClient return controller-runtime client
 	GetCtrlRtClient() rtclient.Client
+}
+
+// MultiMingleClient multi mingleclient
+type MultiMingleClient interface {
+	MultiMingleResource
+
+	MultiClientOperate
+
+	// Rebuild get clusterconfigurationmanager GetAll and rebuild clusterClientMap
+	Rebuild() error
+
+	// HasSynced return true if all mingleclient and all informers underlying store has synced
+	// !import if informerlist is empty, will return true
+	HasSynced() bool
+
+	// Start multiclient and blocks until the context is cancelled
+	// Returns an error if there is an error starting
+	Start(ctx context.Context) error
+}
+
+// MultiMingleResource multi MingleClient Resource
+type MultiMingleResource interface {
+	// AddResourceEventHandler loop each mingleclient invoke AddResourceEventHandler
+	AddResourceEventHandler(obj rtclient.Object, handler cache.ResourceEventHandler) error
+
+	// TriggerSync just trigger each mingleclient cache resource without handler
+	TriggerSync(obj rtclient.Object) error
+
+	// SetIndexField loop each mingleclient invoke SetIndexField
+	SetIndexField(obj rtclient.Object, field string, extractValue rtclient.IndexerFunc) error
+}
+
+// MultiClientOperate multi client operate
+type MultiClientOperate interface {
+	// GetWithName returns MingleClient object with name
+	GetWithName(name string) (MingleClient, error)
+
+	// GetConnectedWithName returns MingleClient object with name and status is connected
+	GetConnectedWithName(name string) (MingleClient, error)
+
+	// GetAll returns all MingleClient
+	GetAll() []MingleClient
+
+	// GetAllConnected returns all MingleClient which status is connected
+	GetAllConnected() []MingleClient
 }
