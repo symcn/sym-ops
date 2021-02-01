@@ -54,11 +54,11 @@ type ClientConfig struct {
 	SetKubeRestConfigFnList []types.SetKubeRestConfig
 }
 
-// SingleClientConfig use default config
+// SimpleClientConfig use default config
 // if scheme is empty use default Kubernetes resource
 // disable leader
 // kubeconfig use default ~/.kube/config or Kubernetes cluster internal config
-func SingleClientConfig(scheme *runtime.Scheme) *ClientConfig {
+func SimpleClientConfig(scheme *runtime.Scheme) *ClientConfig {
 	if scheme == nil {
 		scheme = runtime.NewScheme()
 		clientgoscheme.AddToScheme(scheme)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/symcn/sym-ops/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 )
 
@@ -20,6 +21,16 @@ type multiclient struct {
 	clusterClientMap  map[string]types.MingleClient
 	clustercfgmanager types.ClusterConfigurationManager
 	beforHandleList   []types.BeforeHandle
+
+	scheme                  *runtime.Scheme
+	leaderElection          bool
+	leaderElectionNamespace string
+	leaderElectionID        string
+	syncPeriod              time.Duration
+
+	healthCheckInterval     time.Duration
+	execTimeout             time.Duration
+	setKubeRestConfigFnList []types.SetKubeRestConfig
 }
 
 // NewMultiMingleClient build multiclient
