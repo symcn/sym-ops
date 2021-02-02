@@ -70,7 +70,8 @@ func (c *client) preCheck() error {
 	}
 
 	if c.ExecTimeout < minExectimeout {
-		return fmt.Errorf("exectimeout should lager than 100ms, too small will return timeout mostly")
+		klog.Warningf("exectimeout should lager than 100ms, too small will return timeout mostly, use default")
+		c.ExecTimeout = defaultExecTimeout
 	}
 
 	return nil

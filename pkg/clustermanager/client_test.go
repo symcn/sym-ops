@@ -29,12 +29,12 @@ func TestExceptionNewMingleClient(t *testing.T) {
 			t.Error("scheme config is empty, should be error")
 		}
 	})
-	t.Run("scheme is empty", func(t *testing.T) {
+	t.Run("exectimeout to small", func(t *testing.T) {
 		cfg := SimpleClientConfig(nil)
 		cfg.ExecTimeout = time.Millisecond * 10
-		_, err := NewMingleClient(&ClientConfig{})
-		if err == nil {
-			t.Error("exectimeout is too small, should be error")
+		_, err := NewMingleClient(cfg)
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
