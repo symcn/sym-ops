@@ -14,7 +14,7 @@ func (mc *multiclient) AddResourceEventHandler(obj rtclient.Object, handler cach
 	defer mc.l.Unlock()
 
 	var err error
-	for _, cli := range mc.clusterClientMap {
+	for _, cli := range mc.mingleClientMap {
 		err = cli.AddResourceEventHandler(obj, handler)
 		if err != nil {
 			return fmt.Errorf("cluster %s AddResourceEventHandler failed %+v", cli.GetClusterCfgInfo().GetName(), err)
@@ -29,7 +29,7 @@ func (mc *multiclient) TriggerSync(obj rtclient.Object) error {
 	defer mc.l.Unlock()
 
 	var err error
-	for _, cli := range mc.clusterClientMap {
+	for _, cli := range mc.mingleClientMap {
 		_, err = cli.GetInformer(obj)
 		if err != nil {
 			return fmt.Errorf("cluster %s TriggerSync failed %+v", cli.GetClusterCfgInfo().GetName(), err)
@@ -44,7 +44,7 @@ func (mc *multiclient) SetIndexField(obj rtclient.Object, field string, extractV
 	defer mc.l.Unlock()
 
 	var err error
-	for _, cli := range mc.clusterClientMap {
+	for _, cli := range mc.mingleClientMap {
 		err = cli.SetIndexField(obj, field, extractValue)
 		if err != nil {
 			return fmt.Errorf("cluster %s SetIndexField failed %+v", cli.GetClusterCfgInfo().GetName(), err)
@@ -63,7 +63,7 @@ func (mc *multiclient) HasSynced() bool {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
-	for _, cli := range mc.clusterClientMap {
+	for _, cli := range mc.mingleClientMap {
 		if !cli.HasSynced() {
 			return false
 		}
@@ -76,7 +76,7 @@ func (mc *multiclient) GetWithName(name string) (types.MingleClient, error) {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
-	if cli, ok := mc.clusterClientMap[name]; ok {
+	if cli, ok := mc.mingleClientMap[name]; ok {
 		return cli, nil
 	}
 	return nil, fmt.Errorf(ErrClientNotExist, name)
@@ -87,7 +87,7 @@ func (mc *multiclient) GetConnectedWithName(name string) (types.MingleClient, er
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
-	if cli, ok := mc.clusterClientMap[name]; ok {
+	if cli, ok := mc.mingleClientMap[name]; ok {
 		if cli.IsConnected() {
 			return cli, nil
 		}
@@ -101,8 +101,8 @@ func (mc *multiclient) GetAll() []types.MingleClient {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
-	list := make([]types.MingleClient, 0, len(mc.clusterClientMap))
-	for _, cli := range mc.clusterClientMap {
+	list := make([]types.MingleClient, 0, len(mc.mingleClientMap))
+	for _, cli := range mc.mingleClientMap {
 		list = append(list, cli)
 	}
 	return list
@@ -113,11 +113,16 @@ func (mc *multiclient) GetAllConnected() []types.MingleClient {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
-	list := make([]types.MingleClient, 0, len(mc.clusterClientMap))
-	for _, cli := range mc.clusterClientMap {
+	list := make([]types.MingleClient, 0, len(mc.mingleClientMap))
+	for _, cli := range mc.mingleClientMap {
 		if cli.IsConnected() {
 			list = append(list, cli)
 		}
 	}
 	return list
+}
+
+// RegistryBeforAfterHandler registry BeforeStartHandle
+func (mc *multiclient) RegistryBeforAfterHandler(handler types.BeforeStartHandle) {
+	mc.beforStartHandleList = append(mc.beforStartHandleList, handler)
 }

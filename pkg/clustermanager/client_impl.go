@@ -18,7 +18,7 @@ func (c *client) GetInformer(obj rtclient.Object) (rtcache.Informer, error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	informer, err := c.CtrlRtCache.GetInformer(ctx, obj)
+	informer, err := c.ctrlRtCache.GetInformer(ctx, obj)
 	if err != nil {
 		return nil, err
 	}
@@ -51,13 +51,13 @@ func (c *client) SetIndexField(obj rtclient.Object, field string, extractValue r
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	return c.CtrlRtManager.GetFieldIndexer().IndexField(ctx, obj, field, extractValue)
+	return c.ctrlRtManager.GetFieldIndexer().IndexField(ctx, obj, field, extractValue)
 }
 
 // HasSynced return true if all informers underlying store has synced
 // !import if informerlist is empty, will return true
 func (c *client) HasSynced() bool {
-	if c.started {
+	if !c.started {
 		// if not start, the informer will not synced
 		return false
 	}
@@ -77,7 +77,7 @@ func (c *client) Get(key ktypes.NamespacedName, obj rtclient.Object) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	return c.CtrlRtClient.Get(ctx, key, obj)
+	return c.ctrlRtClient.Get(ctx, key, obj)
 }
 
 // Create saves the object obj in the Kubernetes cluster with timeout.
@@ -85,7 +85,7 @@ func (c *client) Create(obj rtclient.Object, opts ...rtclient.CreateOption) erro
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	return c.CtrlRtClient.Create(ctx, obj, opts...)
+	return c.ctrlRtClient.Create(ctx, obj, opts...)
 }
 
 // Delete deletes the given obj from Kubernetes cluster with timeout.
@@ -93,7 +93,7 @@ func (c *client) Delete(obj rtclient.Object, opts ...rtclient.DeleteOption) erro
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	return c.CtrlRtClient.Delete(ctx, obj, opts...)
+	return c.ctrlRtClient.Delete(ctx, obj, opts...)
 }
 
 // Update updates the given obj in the Kubernetes cluster with timeout. obj must be a
@@ -102,7 +102,7 @@ func (c *client) Update(obj rtclient.Object, opts ...rtclient.UpdateOption) erro
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	return c.CtrlRtClient.Update(ctx, obj, opts...)
+	return c.ctrlRtClient.Update(ctx, obj, opts...)
 }
 
 // Update updates the fields corresponding to the status subresource for the
@@ -112,7 +112,7 @@ func (c *client) StatusUpdate(obj rtclient.Object, opts ...rtclient.UpdateOption
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	return c.CtrlRtClient.Status().Update(ctx, obj, opts...)
+	return c.ctrlRtClient.Status().Update(ctx, obj, opts...)
 }
 
 // Patch patches the given obj in the Kubernetes cluster with timeout. obj must be a
@@ -121,7 +121,7 @@ func (c *client) Patch(obj rtclient.Object, patch rtclient.Patch, opts ...rtclie
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	return c.CtrlRtClient.Patch(ctx, obj, patch, opts...)
+	return c.ctrlRtClient.Patch(ctx, obj, patch, opts...)
 }
 
 // DeleteAllOf deletes all objects of the given type matching the given options with timeout.
@@ -129,31 +129,31 @@ func (c *client) DeleteAllOf(obj rtclient.Object, opts ...rtclient.DeleteAllOfOp
 	ctx, cancel := context.WithTimeout(context.TODO(), c.ExecTimeout)
 	defer cancel()
 
-	return c.CtrlRtClient.DeleteAllOf(ctx, obj, opts...)
+	return c.ctrlRtClient.DeleteAllOf(ctx, obj, opts...)
 }
 
 // GetRestConfig return Kubernetes rest Config
 func (c *client) GetKubeRestConfig() *rest.Config {
-	return c.KubeRestConfig
+	return c.kubeRestConfig
 }
 
 // GetKubeInterface return Kubernetes Interface.
 // kubernetes.ClientSet impl kubernetes.Interface
 func (c *client) GetKubeInterface() kubernetes.Interface {
-	return c.KubeInterface
+	return c.kubeInterface
 }
 
 // GetCtrlRtManager return controller-runtime manager object
 func (c *client) GetCtrlRtManager() rtmanager.Manager {
-	return c.CtrlRtManager
+	return c.ctrlRtManager
 }
 
 // GetCtrlRtCache return controller-runtime cache object
 func (c *client) GetCtrlRtCache() rtcache.Cache {
-	return c.CtrlRtCache
+	return c.ctrlRtCache
 }
 
 // GetCtrlRtClient return controller-runtime client
 func (c *client) GetCtrlRtClient() rtclient.Client {
-	return c.CtrlRtClient
+	return c.ctrlRtClient
 }

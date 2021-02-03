@@ -10,29 +10,31 @@ import (
 func TestExceptionNewMingleClient(t *testing.T) {
 	// precheck
 	t.Run("config is empty", func(t *testing.T) {
-		_, err := NewMingleClient(nil)
+		_, err := NewMingleClient(nil, nil)
 		if err == nil {
 			t.Error("client config is empty, should be error")
 		}
 	})
 	t.Run("cluster configuration is empty", func(t *testing.T) {
-		_, err := NewMingleClient(&ClientConfig{})
+		_, err := NewMingleClient(&ClientOptions{}, nil)
 		if err == nil {
 			t.Error("cluster configuration config is empty, should be error")
 		}
 	})
 	t.Run("scheme is empty", func(t *testing.T) {
-		cfg := SimpleClientConfig(nil)
-		cfg.Scheme = nil
-		_, err := NewMingleClient(&ClientConfig{})
+		cfg := SimpleClientOptions()
+		opt := DefaultOptions(nil, 0, 0)
+		opt.Scheme = nil
+		_, err := NewMingleClient(cfg, opt)
 		if err == nil {
 			t.Error("scheme config is empty, should be error")
 		}
 	})
 	t.Run("exectimeout to small", func(t *testing.T) {
-		cfg := SimpleClientConfig(nil)
-		cfg.ExecTimeout = time.Millisecond * 10
-		_, err := NewMingleClient(cfg)
+		cfg := SimpleClientOptions()
+		opt := DefaultOptions(nil, 0, 0)
+		opt.ExecTimeout = time.Millisecond * 10
+		_, err := NewMingleClient(cfg, opt)
 		if err != nil {
 			t.Error(err)
 		}
@@ -40,7 +42,7 @@ func TestExceptionNewMingleClient(t *testing.T) {
 
 	// health check
 	t.Run("no health check", func(t *testing.T) {
-		cli, err := NewMingleClient(SimpleClientConfig(nil))
+		cli, err := NewMingleClient(SimpleClientOptions(), DefaultOptions(nil, 0, 0))
 		if err != nil {
 			t.Error(err)
 			return
@@ -61,7 +63,7 @@ func TestExceptionNewMingleClient(t *testing.T) {
 
 	// start
 	t.Run("repeat start", func(t *testing.T) {
-		cli, err := NewMingleClient(SimpleClientConfig(nil))
+		cli, err := NewMingleClient(SimpleClientOptions(), DefaultOptions(nil, 0, 0))
 		if err != nil {
 			t.Error(err)
 			return
@@ -87,7 +89,7 @@ func TestExceptionNewMingleClient(t *testing.T) {
 	})
 
 	t.Run("stop", func(t *testing.T) {
-		cli, err := NewMingleClient(SimpleClientConfig(nil))
+		cli, err := NewMingleClient(SimpleClientOptions(), DefaultOptions(nil, 0, 0))
 		if err != nil {
 			t.Error(err)
 			return
@@ -107,7 +109,7 @@ func TestExceptionNewMingleClient(t *testing.T) {
 	})
 
 	t.Run("start connect status", func(t *testing.T) {
-		cli, err := NewMingleClient(SimpleClientConfig(nil))
+		cli, err := NewMingleClient(SimpleClientOptions(), DefaultOptions(nil, 0, 0))
 		if err != nil {
 			t.Error(err)
 			return
@@ -135,7 +137,7 @@ func TestExceptionNewMingleClient(t *testing.T) {
 }
 
 func TestNewMingleClient(t *testing.T) {
-	cli, err := NewMingleClient(SimpleClientConfig(nil))
+	cli, err := NewMingleClient(SimpleClientOptions(), DefaultOptions(nil, 0, 0))
 	if err != nil {
 		t.Error(err)
 		return

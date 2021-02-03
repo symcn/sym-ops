@@ -16,10 +16,10 @@ import (
 // such as QPS Burst
 type SetKubeRestConfig func(config *rest.Config)
 
-// BeforeHandle before Start exec this handle
+// BeforeStartHandle before Start exec this handle
 // registry informer, when multi cluster manager add new cluster
 // should record before handle, returns error will not start
-type BeforeHandle func(cli MingleClient) error
+type BeforeStartHandle func(cli MingleClient) error
 
 // MingleClient mingle client
 // wrap controller-runtime manager
@@ -165,4 +165,7 @@ type MultiClientOperate interface {
 
 	// GetAllConnected returns all MingleClient which status is connected
 	GetAllConnected() []MingleClient
+
+	// RegistryBeforAfterHandler registry BeforeStartHandle
+	RegistryBeforAfterHandler(handler BeforeStartHandle)
 }

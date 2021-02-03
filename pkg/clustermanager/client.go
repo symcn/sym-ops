@@ -17,7 +17,8 @@ import (
 )
 
 type client struct {
-	*ClientConfig
+	*Options
+	*ClientOptions
 
 	stopCh         chan struct{}
 	connected      bool
@@ -25,20 +26,21 @@ type client struct {
 	internalCancel context.CancelFunc
 	informerList   []rtcache.Informer
 
-	KubeRestConfig *rest.Config
-	KubeInterface  kubernetes.Interface
+	kubeRestConfig *rest.Config
+	kubeInterface  kubernetes.Interface
 
-	CtrlRtManager rtmanager.Manager
-	CtrlRtCache   rtcache.Cache
-	CtrlRtClient  rtclient.Client
+	ctrlRtManager rtmanager.Manager
+	ctrlRtCache   rtcache.Cache
+	ctrlRtClient  rtclient.Client
 }
 
 // NewMingleClient build types.MingleClient
-func NewMingleClient(cfg *ClientConfig) (types.MingleClient, error) {
+func NewMingleClient(clinetOpt *ClientOptions, opt *Options) (types.MingleClient, error) {
 	cli := &client{
-		ClientConfig: cfg,
-		stopCh:       make(chan struct{}, 0),
-		informerList: []rtcache.Informer{},
+		Options:       opt,
+		ClientOptions: clinetOpt,
+		stopCh:        make(chan struct{}, 0),
+		informerList:  []rtcache.Informer{},
 	}
 
 	// 1. pre check
@@ -55,23 +57,23 @@ func NewMingleClient(cfg *ClientConfig) (types.MingleClient, error) {
 }
 
 func (c *client) preCheck() error {
-	if c.ClientConfig == nil {
+	if c.ClientOptions == nil {
 		return errors.New("client configuration is empty")
 	}
 
 	// clusterconfig and cluster name must not empty
-	if c.ClusterCfg == nil || c.ClusterCfg.GetName() == "" {
+	if c.ClientOptions.ClusterCfg == nil || c.ClientOptions.ClusterCfg.GetName() == "" {
 		return errors.New("cluster info is empty or cluster name is empty")
 	}
 
 	// cluster scheme must not empty
-	if c.Scheme == nil {
+	if c.Options.Scheme == nil {
 		return errors.New("scheme is empty")
 	}
 
-	if c.ExecTimeout < minExectimeout {
-		klog.Warningf("exectimeout should lager than 100ms, too small will return timeout mostly, use default")
-		c.ExecTimeout = defaultExecTimeout
+	if c.Options.ExecTimeout < minExectimeout {
+		klog.Warningf("exectimeout should lager than 100ms, too small will return timeout mostly, use default %v", defaultExecTimeout)
+		c.Options.ExecTimeout = defaultExecTimeout
 	}
 
 	return nil
@@ -80,19 +82,19 @@ func (c *client) preCheck() error {
 func (c *client) initialization() error {
 	var err error
 	// Step 1. build restconfig
-	c.KubeRestConfig, err = buildClientCmd(c.ClusterCfg, c.SetKubeRestConfigFnList)
+	c.kubeRestConfig, err = buildClientCmd(c.ClusterCfg, c.SetKubeRestConfigFnList)
 	if err != nil {
 		return fmt.Errorf("cluster %s build kubernetes failed %+v", c.ClusterCfg.GetName(), err)
 	}
 
 	// Step 2. build kubernetes interface
-	c.KubeInterface, err = buildKubeInterface(c.KubeRestConfig)
+	c.kubeInterface, err = buildKubeInterface(c.kubeRestConfig)
 	if err != nil {
 		return fmt.Errorf("cluster %s build kubernetes interface failed %+v", c.ClusterCfg.GetName(), err)
 	}
 
 	// Step 3. build controller-runtime manager
-	c.CtrlRtManager, err = controllers.NewManager(c.KubeRestConfig, rtmanager.Options{
+	c.ctrlRtManager, err = controllers.NewManager(c.kubeRestConfig, rtmanager.Options{
 		Scheme:                  c.Scheme,
 		SyncPeriod:              &c.SyncPeriod,
 		LeaderElection:          c.LeaderElection,
@@ -104,15 +106,15 @@ func (c *client) initialization() error {
 	if err != nil {
 		return fmt.Errorf("cluster %s build controller-runtime manager failed %+v", c.ClusterCfg.GetName(), err)
 	}
-	c.CtrlRtClient = c.CtrlRtManager.GetClient()
-	c.CtrlRtCache = c.CtrlRtManager.GetCache()
+	c.ctrlRtClient = c.ctrlRtManager.GetClient()
+	c.ctrlRtCache = c.ctrlRtManager.GetCache()
 
 	return nil
 }
 
 func (c *client) autoHealthCheck() {
 	handler := func() {
-		ok, err := healthRequestWithTimeout(c.KubeInterface.Discovery().RESTClient(), c.ExecTimeout)
+		ok, err := healthRequestWithTimeout(c.kubeInterface.Discovery().RESTClient(), c.ExecTimeout)
 		if err != nil {
 			klog.Errorf("cluster %s check healthy failed %+v", c.ClusterCfg.GetName(), err)
 		}
@@ -128,7 +130,7 @@ func (c *client) autoHealthCheck() {
 		return
 	}
 
-	timer := time.NewTicker(c.HealthCheckInterval)
+	timer := time.NewTicker(c.Options.HealthCheckInterval)
 	defer timer.Stop()
 
 	for {
@@ -153,7 +155,7 @@ func (c *client) Start(ctx context.Context) error {
 	ctx, c.internalCancel = context.WithCancel(ctx)
 
 	go func() {
-		err = c.CtrlRtManager.Start(ctx)
+		err = c.ctrlRtManager.Start(ctx)
 		if err != nil {
 			klog.Errorf("start cluster %s error %+v", c.ClusterCfg.GetName(), err)
 			close(c.stopCh)
@@ -187,5 +189,5 @@ func (c *client) IsConnected() bool {
 
 // GetClusterCfgInfo returns cluster configuration info
 func (c *client) GetClusterCfgInfo() types.ClusterCfgInfo {
-	return c.ClusterCfg
+	return c.ClientOptions.ClusterCfg
 }

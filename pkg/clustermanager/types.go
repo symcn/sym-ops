@@ -28,53 +28,62 @@ var (
 	ErrClientNotConnected = "cluster %s disconnected"
 )
 
-type option struct {
-	scheme                  *runtime.Scheme
-	metricsBindAddress      int
-	leaderElection          bool
-	leaderElectionNamespace string
-	leaderElectionID        string
-	resyncPeriod            time.Duration
-
-	clusterCfgManager types.ClusterConfigurationManager
-	setKubeRestConfig types.SetKubeRestConfig
-}
-
-// ClientConfig client configuration
-type ClientConfig struct {
+// Options options
+type Options struct {
 	Scheme                  *runtime.Scheme
 	LeaderElection          bool
 	LeaderElectionNamespace string
 	LeaderElectionID        string
 	SyncPeriod              time.Duration
-
 	HealthCheckInterval     time.Duration
 	ExecTimeout             time.Duration
-	ClusterCfg              types.ClusterCfgInfo
 	SetKubeRestConfigFnList []types.SetKubeRestConfig
 }
 
-// SimpleClientConfig use default config
+// ClientOptions client configuration
+type ClientOptions struct {
+	ClusterCfg types.ClusterCfgInfo
+}
+
+// MultiClientOptions multi client configuration
+type MultiClientOptions struct {
+	ClusterConfigurationManager types.ClusterConfigurationManager
+	RebuildInterval             time.Duration
+}
+
+// SimpleClientOptions use default config
+// kubeconfig use default ~/.kube/config or Kubernetes cluster internal config
+func SimpleClientOptions() *ClientOptions {
+	return &ClientOptions{
+		ClusterCfg: configuration.BuildDefaultClusterCfgInfo(defaultClusterName),
+	}
+}
+
+// DefaultOptions use default config
 // if scheme is empty use default Kubernetes resource
 // disable leader
-// kubeconfig use default ~/.kube/config or Kubernetes cluster internal config
-func SimpleClientConfig(scheme *runtime.Scheme) *ClientConfig {
+func DefaultOptions(scheme *runtime.Scheme, qps, burst int) *Options {
 	if scheme == nil {
 		scheme = runtime.NewScheme()
 		clientgoscheme.AddToScheme(scheme)
 	}
+	if qps < 1 {
+		qps = defaultQPS
+	}
+	if burst < 1 {
+		burst = defaultBurst
+	}
 
-	return &ClientConfig{
+	return &Options{
 		Scheme:              scheme,
 		LeaderElection:      false,
 		SyncPeriod:          defaultSyncPeriod,
 		HealthCheckInterval: defaultHealthCheckInterval,
 		ExecTimeout:         defaultExecTimeout,
-		ClusterCfg:          configuration.BuildDefaultClusterCfgInfo(defaultClusterName),
 		SetKubeRestConfigFnList: []types.SetKubeRestConfig{
 			func(config *rest.Config) {
-				config.QPS = float32(defaultQPS)
-				config.Burst = defaultBurst
+				config.QPS = float32(qps)
+				config.Burst = burst
 			},
 		},
 	}

@@ -8,34 +8,43 @@ import (
 	"time"
 
 	"github.com/symcn/sym-ops/pkg/types"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 )
 
 type multiclient struct {
-	l                 sync.Mutex
-	ctx               context.Context
-	stopCh            chan struct{}
-	started           bool
-	rebuildInterval   time.Duration
-	clusterClientMap  map[string]types.MingleClient
-	clustercfgmanager types.ClusterConfigurationManager
-	beforHandleList   []types.BeforeHandle
+	*Options
+	*MultiClientOptions
 
-	scheme                  *runtime.Scheme
-	leaderElection          bool
-	leaderElectionNamespace string
-	leaderElectionID        string
-	syncPeriod              time.Duration
-
-	healthCheckInterval     time.Duration
-	execTimeout             time.Duration
-	setKubeRestConfigFnList []types.SetKubeRestConfig
+	l                    sync.Mutex
+	ctx                  context.Context
+	stopCh               chan struct{}
+	started              bool
+	mingleClientMap      map[string]types.MingleClient
+	beforStartHandleList []types.BeforeStartHandle
 }
 
 // NewMultiMingleClient build multiclient
-func NewMultiMingleClient(rebuildInterval time.Duration, clustercfgmanager types.ClusterConfigurationManager, beforHandleList ...types.BeforeHandle) (types.MultiMingleClient, error) {
-	return nil, nil
+func NewMultiMingleClient(multiOpt *MultiClientOptions, opt *Options) (types.MultiMingleClient, error) {
+	multiCli := &multiclient{
+		Options:              opt,
+		MultiClientOptions:   multiOpt,
+		stopCh:               make(chan struct{}, 0),
+		mingleClientMap:      map[string]types.MingleClient{},
+		beforStartHandleList: []types.BeforeStartHandle{},
+	}
+
+	clsList, err := multiCli.MultiClientOptions.ClusterConfigurationManager.GetAll()
+	if err != nil {
+		return nil, fmt.Errorf("NewMulticMingleClient get all cluster info failed %+v", err)
+	}
+	for _, clsInfo := range clsList {
+		cli, err := multiCli.buildClient(clsInfo)
+		if err != nil {
+			return nil, err
+		}
+		multiCli.mingleClientMap[clsInfo.GetName()] = cli
+	}
+	return multiCli, nil
 }
 
 func (mc *multiclient) Start(ctx context.Context) error {
@@ -43,17 +52,19 @@ func (mc *multiclient) Start(ctx context.Context) error {
 		return errors.New("multiclient can't repeat start")
 	}
 	mc.started = true
+	// save ctx, when add new client
+	mc.ctx = ctx
 
 	mc.l.Lock()
-	defer mc.l.Unlock()
-
 	var err error
-	for _, cli := range mc.clusterClientMap {
-		err = start(mc.ctx, cli, mc.beforHandleList...)
+	for _, cli := range mc.mingleClientMap {
+		err = start(mc.ctx, cli, mc.beforStartHandleList)
 		if err != nil {
+			mc.l.Unlock()
 			return err
 		}
 	}
+	mc.l.Unlock()
 
 	select {
 	case <-ctx.Done():
@@ -62,9 +73,9 @@ func (mc *multiclient) Start(ctx context.Context) error {
 	}
 }
 
-func start(ctx context.Context, cli types.MingleClient, beforHandleList ...types.BeforeHandle) error {
+func start(ctx context.Context, cli types.MingleClient, beforStartHandleList []types.BeforeStartHandle) error {
 	var err error
-	for _, handler := range beforHandleList {
+	for _, handler := range beforStartHandleList {
 		err = handler(cli)
 		if err != nil {
 			return fmt.Errorf("invoke mingle client %s BeforeHandle failed %+v", cli.GetClusterCfgInfo().GetName(), err)
@@ -82,12 +93,12 @@ func start(ctx context.Context, cli types.MingleClient, beforHandleList ...types
 }
 
 func (mc *multiclient) autoRebuild() {
-	if mc.rebuildInterval <= 0 {
+	if mc.RebuildInterval <= 0 {
 		return
 	}
 
 	var err error
-	timer := time.NewTicker(mc.rebuildInterval)
+	timer := time.NewTicker(mc.MultiClientOptions.RebuildInterval)
 	for {
 		select {
 		case <-timer.C:
@@ -109,35 +120,35 @@ func (mc *multiclient) Rebuild() error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
-	newList, err := mc.clustercfgmanager.GetAll()
+	newList, err := mc.ClusterConfigurationManager.GetAll()
 	if err != nil {
 		return fmt.Errorf("get all cluster info failed %+v", err)
 	}
 
 	newCliMap := make(map[string]types.MingleClient, len(newList))
+	var change int
 	// add and check new cluster
-	for _, newClsCfg := range newList {
+	for _, newClsInfo := range newList {
 		// get old cluster info
-		oldCli, exist := mc.clusterClientMap[newClsCfg.GetName()]
+		oldCli, exist := mc.mingleClientMap[newClsInfo.GetName()]
 		if exist &&
-			oldCli.GetClusterCfgInfo().GetKubeConfigType() == newClsCfg.GetKubeConfigType() &&
-			oldCli.GetClusterCfgInfo().GetKubeConfig() == newClsCfg.GetKubeConfig() &&
-			oldCli.GetClusterCfgInfo().GetKubeContext() == newClsCfg.GetKubeContext() {
+			oldCli.GetClusterCfgInfo().GetKubeConfigType() == newClsInfo.GetKubeConfigType() &&
+			oldCli.GetClusterCfgInfo().GetKubeConfig() == newClsInfo.GetKubeConfig() &&
+			oldCli.GetClusterCfgInfo().GetKubeContext() == newClsInfo.GetKubeContext() {
 			// kubetype, kubeconfig, kubecontext not modify
 			newCliMap[oldCli.GetClusterCfgInfo().GetName()] = oldCli
 			continue
 		}
 
 		// build new client
-		// TODO complete logic
-		cli, err := NewMingleClient(&ClientConfig{})
+		cli, err := mc.buildClient(newClsInfo)
 		if err != nil {
 			klog.Error(err)
 			continue
 		}
 
 		// start new client
-		err = start(mc.ctx, cli, mc.beforHandleList...)
+		err = start(mc.ctx, cli, mc.beforStartHandleList)
 		if err != nil {
 			klog.Error(err)
 			continue
@@ -148,19 +159,31 @@ func (mc *multiclient) Rebuild() error {
 			oldCli.Stop()
 		}
 
-		newCliMap[newClsCfg.GetName()] = cli
-		klog.Infof("auto add mingle client %s", newClsCfg.GetName())
+		newCliMap[newClsInfo.GetName()] = cli
+		klog.Infof("auto add mingle client %s", newClsInfo.GetName())
+		change++
 	}
 
 	// remove unexpect cluster
-	for name, oldCli := range mc.clusterClientMap {
+	for name, oldCli := range mc.mingleClientMap {
 		if _, ok := newCliMap[name]; !ok {
+			change++
 			// not exist, should stop
 			go func(cli types.MingleClient) {
 				cli.Stop()
 			}(oldCli)
 		}
 	}
-	mc.clusterClientMap = newCliMap
+
+	// not change return direct
+	if change < 1 {
+		return nil
+	}
+
+	mc.mingleClientMap = newCliMap
 	return nil
+}
+
+func (mc *multiclient) buildClient(clsInfo types.ClusterCfgInfo) (types.MingleClient, error) {
+	return NewMingleClient(&ClientOptions{ClusterCfg: clsInfo}, mc.Options)
 }
