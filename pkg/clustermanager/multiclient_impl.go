@@ -1,8 +1,10 @@
 package clustermanager
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/symcn/sym-ops/pkg/clustermanager/handler"
 	"github.com/symcn/sym-ops/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	rtclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,6 +51,23 @@ func (mc *multiclient) SetIndexField(obj rtclient.Object, field string, extractV
 		if err != nil {
 			return fmt.Errorf("cluster %s SetIndexField failed %+v", cli.GetClusterCfgInfo().GetName(), err)
 		}
+	}
+	return nil
+}
+
+// Watch takes events provided by a Source and uses the EventHandler to
+// enqueue reconcile.Requests in response to the events.
+//
+// Watch may be provided one or more Predicates to filter events before
+// they are given to the EventHandler.  Events will be passed to the
+// EventHandler if all provided Predicates evaluate to true.
+func (mc *multiclient) Watch(obj rtclient.Object, queue types.WorkQueue, evtHandler types.EventHandler, predicates ...types.Predicate) error {
+	if queue == nil {
+		return errors.New("types.WorkQueue is nil")
+	}
+	err := mc.AddResourceEventHandler(obj, handler.NewResourceEventHandler(queue, evtHandler, predicates...))
+	if err != nil {
+		return fmt.Errorf("Watch resource failed %+v", err)
 	}
 	return nil
 }

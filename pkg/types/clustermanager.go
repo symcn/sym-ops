@@ -32,6 +32,8 @@ type MingleClient interface {
 	// if dissatisfy can use this interface get controller-runtime manager resource
 	ControllerRuntimeManagerResource
 
+	Controller
+
 	// Start client and blocks until the context is cancelled
 	// Returns an error if there is an error starting
 	Start(ctx context.Context) error
@@ -122,11 +124,27 @@ type ControllerRuntimeManagerResource interface {
 	GetCtrlRtClient() rtclient.Client
 }
 
+// Controller implements a Kubernetes API. A Controller manages a work queue fed reconcile.Requests
+// from source.Sources. Work is performed through the reconcile.Reconcile for each enqueued item.
+// Work typically is reads and writes Kubernetes objectes to make the system state match the state specified
+// in the object Spec.
+type Controller interface {
+	// Watch takes events provided by a Source and uses the EventHandler to
+	// enqueue reconcile.Requests in response to the events.
+	//
+	// Watch may be provided one or more Predicates to filter events before
+	// they are given to the EventHandler.  Events will be passed to the
+	// EventHandler if all provided Predicates evaluate to true.
+	Watch(src rtclient.Object, queue WorkQueue, handler EventHandler, predicates ...Predicate) error
+}
+
 // MultiMingleClient multi mingleclient
 type MultiMingleClient interface {
 	MultiMingleResource
 
 	MultiClientOperate
+
+	Controller
 
 	// Rebuild get clusterconfigurationmanager GetAll and rebuild clusterClientMap
 	Rebuild() error

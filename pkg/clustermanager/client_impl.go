@@ -2,7 +2,10 @@ package clustermanager
 
 import (
 	"context"
+	"errors"
 
+	"github.com/symcn/sym-ops/pkg/clustermanager/handler"
+	"github.com/symcn/sym-ops/pkg/types"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -52,6 +55,19 @@ func (c *client) SetIndexField(obj rtclient.Object, field string, extractValue r
 	defer cancel()
 
 	return c.ctrlRtManager.GetFieldIndexer().IndexField(ctx, obj, field, extractValue)
+}
+
+// Watch takes events provided by a Source and uses the EventHandler to
+// enqueue reconcile.Requests in response to the events.
+//
+// Watch may be provided one or more Predicates to filter events before
+// they are given to the EventHandler.  Events will be passed to the
+// EventHandler if all provided Predicates evaluate to true.
+func (c *client) Watch(obj rtclient.Object, queue types.WorkQueue, evtHandler types.EventHandler, predicates ...types.Predicate) error {
+	if queue == nil {
+		return errors.New("types.WorkQueue is nil")
+	}
+	return c.AddResourceEventHandler(obj, handler.NewResourceEventHandler(queue, evtHandler, predicates...))
 }
 
 // HasSynced return true if all informers underlying store has synced
