@@ -46,23 +46,45 @@ func TestNewMultiClient(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	eventHandler := &mockEventHandler{}
-	err = multiCli.Watch(&corev1.Pod{}, queue, eventHandler, predicate.NamespacePredicate("*"))
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	// eventHandler := &mockEventHandler{}
+	// err = multiCli.Watch(&corev1.Pod{}, queue, eventHandler, predicate.NamespacePredicate("*"))
+	// if err != nil {
+	//     t.Error(err)
+	//     return
+	// }
 
-	err = multiCli.Watch(&corev1.ConfigMap{}, queue, eventHandler, predicate.NamespacePredicate("*"))
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	// err = cli.Watch(&corev1.ConfigMap{}, queue, eventHandler, predicate.NamespacePredicate("*"))
+	// if err != nil {
+	//     t.Error(err)
+	//     return
+	// }
+	multiCli.RegistryBeforAfterHandler(func(cli types.MingleClient) error {
+		eventHandler := &mockEventHandler{}
+		err := cli.Watch(&corev1.Pod{}, queue, eventHandler, predicate.NamespacePredicate("*"))
+		if err != nil {
+			t.Error(err)
+			return err
+		}
+
+		err = cli.Watch(&corev1.ConfigMap{}, queue, eventHandler, predicate.NamespacePredicate("*"))
+		if err != nil {
+			t.Error(err)
+			return err
+		}
+		return nil
+	})
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
 	ch := make(chan struct{}, 0)
+	go func() {
+		err = queue.Run(ctx)
+		if err != nil {
+			t.Error(err)
+		}
+	}()
+
 	go func() {
 		err = multiCli.Start(ctx)
 		if err != nil {
@@ -90,6 +112,7 @@ type reconcile struct {
 }
 
 func (r *reconcile) Reconcile(req ktypes.NamespacedName) (requeue types.NeedRequeue, after time.Duration, err error) {
+	fmt.Println(req.String())
 	return types.Done, 0, nil
 }
 
@@ -97,17 +120,18 @@ type mockEventHandler struct {
 }
 
 func (t *mockEventHandler) Create(obj rtclient.Object, queue types.WorkQueue) {
-	gvks, b, err := mockOpt.Scheme.ObjectKinds(obj)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if b {
-		return
-	}
-	if len(gvks) == 1 {
-		fmt.Println(gvks[0].Kind)
-	}
+	// gvks, b, err := mockOpt.Scheme.ObjectKinds(obj)
+	// if err != nil {
+	//     fmt.Println(err)
+	//     return
+	// }
+	// if b {
+	//     return
+	// }
+	// if len(gvks) == 1 {
+	//     fmt.Println(gvks[0].Kind)
+	// }
+	queue.Add(ktypes.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()})
 }
 
 func (t *mockEventHandler) Update(oldObj, newObj rtclient.Object, queue types.WorkQueue) {
