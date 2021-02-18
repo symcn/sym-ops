@@ -18,7 +18,8 @@ import (
 
 type client struct {
 	*Options
-	*ClientOptions
+	clusterCfg types.ClusterCfgInfo
+	// *ClientOptions
 
 	stopCh         chan struct{}
 	connected      bool
@@ -35,12 +36,12 @@ type client struct {
 }
 
 // NewMingleClient build types.MingleClient
-func NewMingleClient(clinetOpt *ClientOptions, opt *Options) (types.MingleClient, error) {
+func NewMingleClient(clusterCfg types.ClusterCfgInfo, opt *Options) (types.MingleClient, error) {
 	cli := &client{
-		Options:       opt,
-		ClientOptions: clinetOpt,
-		stopCh:        make(chan struct{}, 0),
-		informerList:  []rtcache.Informer{},
+		Options:      opt,
+		clusterCfg:   clusterCfg,
+		stopCh:       make(chan struct{}, 0),
+		informerList: []rtcache.Informer{},
 	}
 
 	// 1. pre check
@@ -57,12 +58,8 @@ func NewMingleClient(clinetOpt *ClientOptions, opt *Options) (types.MingleClient
 }
 
 func (c *client) preCheck() error {
-	if c.ClientOptions == nil {
-		return errors.New("client configuration is empty")
-	}
-
 	// clusterconfig and cluster name must not empty
-	if c.ClientOptions.ClusterCfg == nil || c.ClientOptions.ClusterCfg.GetName() == "" {
+	if c.clusterCfg == nil || c.clusterCfg.GetName() == "" {
 		return errors.New("cluster info is empty or cluster name is empty")
 	}
 
@@ -82,15 +79,15 @@ func (c *client) preCheck() error {
 func (c *client) initialization() error {
 	var err error
 	// Step 1. build restconfig
-	c.kubeRestConfig, err = buildClientCmd(c.ClusterCfg, c.SetKubeRestConfigFnList)
+	c.kubeRestConfig, err = buildClientCmd(c.clusterCfg, c.SetKubeRestConfigFnList)
 	if err != nil {
-		return fmt.Errorf("cluster %s build kubernetes failed %+v", c.ClusterCfg.GetName(), err)
+		return fmt.Errorf("cluster %s build kubernetes failed %+v", c.clusterCfg.GetName(), err)
 	}
 
 	// Step 2. build kubernetes interface
 	c.kubeInterface, err = buildKubeInterface(c.kubeRestConfig)
 	if err != nil {
-		return fmt.Errorf("cluster %s build kubernetes interface failed %+v", c.ClusterCfg.GetName(), err)
+		return fmt.Errorf("cluster %s build kubernetes interface failed %+v", c.clusterCfg.GetName(), err)
 	}
 
 	// Step 3. build controller-runtime manager
@@ -104,7 +101,7 @@ func (c *client) initialization() error {
 		HealthProbeBindAddress:  "0",
 	})
 	if err != nil {
-		return fmt.Errorf("cluster %s build controller-runtime manager failed %+v", c.ClusterCfg.GetName(), err)
+		return fmt.Errorf("cluster %s build controller-runtime manager failed %+v", c.clusterCfg.GetName(), err)
 	}
 	c.ctrlRtClient = c.ctrlRtManager.GetClient()
 	c.ctrlRtCache = c.ctrlRtManager.GetCache()
@@ -116,7 +113,7 @@ func (c *client) autoHealthCheck() {
 	handler := func() {
 		ok, err := healthRequestWithTimeout(c.kubeInterface.Discovery().RESTClient(), c.ExecTimeout)
 		if err != nil {
-			klog.Errorf("cluster %s check healthy failed %+v", c.ClusterCfg.GetName(), err)
+			klog.Errorf("cluster %s check healthy failed %+v", c.clusterCfg.GetName(), err)
 		}
 		c.connected = ok
 	}
@@ -147,7 +144,7 @@ func (c *client) autoHealthCheck() {
 // Returns an error if there is an error starting
 func (c *client) Start(ctx context.Context) error {
 	if c.started {
-		return fmt.Errorf("client %s can't repeat start", c.ClusterCfg.GetName())
+		return fmt.Errorf("client %s can't repeat start", c.clusterCfg.GetName())
 	}
 	c.started = true
 
@@ -157,10 +154,10 @@ func (c *client) Start(ctx context.Context) error {
 	go func() {
 		err = c.ctrlRtManager.Start(ctx)
 		if err != nil {
-			klog.Errorf("start cluster %s error %+v", c.ClusterCfg.GetName(), err)
+			klog.Errorf("start cluster %s error %+v", c.clusterCfg.GetName(), err)
 			close(c.stopCh)
 		}
-		klog.Warningf("cluster %s stoped.", c.ClusterCfg.GetName())
+		klog.Warningf("cluster %s stoped.", c.clusterCfg.GetName())
 	}()
 
 	// health check
@@ -189,5 +186,5 @@ func (c *client) IsConnected() bool {
 
 // GetClusterCfgInfo returns cluster configuration info
 func (c *client) GetClusterCfgInfo() types.ClusterCfgInfo {
-	return c.ClientOptions.ClusterCfg
+	return c.clusterCfg
 }

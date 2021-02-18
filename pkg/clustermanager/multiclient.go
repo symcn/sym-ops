@@ -13,8 +13,8 @@ import (
 
 type multiclient struct {
 	*Options
-	*MultiClientOptions
-
+	clusterCfgManager    types.ClusterConfigurationManager
+	rebuildInterval      time.Duration
 	l                    sync.Mutex
 	ctx                  context.Context
 	stopCh               chan struct{}
@@ -24,16 +24,17 @@ type multiclient struct {
 }
 
 // NewMultiMingleClient build multiclient
-func NewMultiMingleClient(multiOpt *MultiClientOptions, opt *Options) (types.MultiMingleClient, error) {
+func NewMultiMingleClient(clusterCfgManager types.ClusterConfigurationManager, rebuildInterval time.Duration, opt *Options) (types.MultiMingleClient, error) {
 	multiCli := &multiclient{
 		Options:              opt,
-		MultiClientOptions:   multiOpt,
+		clusterCfgManager:    clusterCfgManager,
+		rebuildInterval:      rebuildInterval,
 		stopCh:               make(chan struct{}, 0),
 		mingleClientMap:      map[string]types.MingleClient{},
 		beforStartHandleList: []types.BeforeStartHandle{},
 	}
 
-	clsList, err := multiCli.MultiClientOptions.ClusterConfigurationManager.GetAll()
+	clsList, err := multiCli.clusterCfgManager.GetAll()
 	if err != nil {
 		return nil, fmt.Errorf("NewMulticMingleClient get all cluster info failed %+v", err)
 	}
@@ -93,12 +94,12 @@ func start(ctx context.Context, cli types.MingleClient, beforStartHandleList []t
 }
 
 func (mc *multiclient) autoRebuild() {
-	if mc.RebuildInterval <= 0 {
+	if mc.rebuildInterval <= 0 {
 		return
 	}
 
 	var err error
-	timer := time.NewTicker(mc.MultiClientOptions.RebuildInterval)
+	timer := time.NewTicker(mc.rebuildInterval)
 	for {
 		select {
 		case <-timer.C:
@@ -120,7 +121,7 @@ func (mc *multiclient) Rebuild() error {
 	mc.l.Lock()
 	defer mc.l.Unlock()
 
-	newList, err := mc.ClusterConfigurationManager.GetAll()
+	newList, err := mc.clusterCfgManager.GetAll()
 	if err != nil {
 		return fmt.Errorf("get all cluster info failed %+v", err)
 	}
@@ -185,5 +186,5 @@ func (mc *multiclient) Rebuild() error {
 }
 
 func (mc *multiclient) buildClient(clsInfo types.ClusterCfgInfo) (types.MingleClient, error) {
-	return NewMingleClient(&ClientOptions{ClusterCfg: clsInfo}, mc.Options)
+	return NewMingleClient(clsInfo, mc.Options)
 }

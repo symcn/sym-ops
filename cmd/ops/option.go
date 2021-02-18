@@ -13,6 +13,9 @@ type controllerOption struct {
 	LeaderElectionNamespace string
 	LeaderElectionID        string
 
+	Master bool
+	Worker bool
+
 	SyncPeriod          time.Duration
 	HealthCheckInterval time.Duration
 	ExecTimeout         time.Duration
@@ -28,6 +31,8 @@ func defaultCtrlOption() *controllerOption {
 		LeaderElection:          false,
 		LeaderElectionNamespace: "",
 		LeaderElectionID:        "",
+		Master:                  false,
+		Worker:                  false,
 		SyncPeriod:              time.Minute * 30,
 		HealthCheckInterval:     time.Second * 10,
 		ExecTimeout:             time.Second * 5,

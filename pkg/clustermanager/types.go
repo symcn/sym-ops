@@ -40,23 +40,36 @@ type Options struct {
 	SetKubeRestConfigFnList []types.SetKubeRestConfig
 }
 
-// ClientOptions client configuration
-type ClientOptions struct {
-	ClusterCfg types.ClusterCfgInfo
-}
+// // ClientOptions client configuration
+// type ClientOptions struct {
+//     ClusterCfg types.ClusterCfgInfo
+// }
 
-// MultiClientOptions multi client configuration
-type MultiClientOptions struct {
-	ClusterConfigurationManager types.ClusterConfigurationManager
-	RebuildInterval             time.Duration
-}
+// // MultiClientOptions multi client configuration
+// type MultiClientOptions struct {
+//     ClusterConfigurationManager types.ClusterConfigurationManager
+//     RebuildInterval             time.Duration
+// }
 
-// SimpleClientOptions use default config
+// // SimpleClientOptions use default config
+// // kubeconfig use default ~/.kube/config or Kubernetes cluster internal config
+// func SimpleClientOptions(clusterName string) *ClientOptions {
+//     if clusterName == "" {
+//         clusterName = defaultClusterName
+//     }
+
+//     return &ClientOptions{
+//         ClusterCfg: configuration.BuildDefaultClusterCfgInfo(clusterName),
+//     }
+// }
+
+// DefaultClusterCfgInfo default clusterCfgInfo
 // kubeconfig use default ~/.kube/config or Kubernetes cluster internal config
-func SimpleClientOptions() *ClientOptions {
-	return &ClientOptions{
-		ClusterCfg: configuration.BuildDefaultClusterCfgInfo(defaultClusterName),
+func DefaultClusterCfgInfo(clusterName string) types.ClusterCfgInfo {
+	if clusterName == "" {
+		clusterName = defaultClusterName
 	}
+	return configuration.BuildDefaultClusterCfgInfo(clusterName)
 }
 
 // DefaultOptions use default config

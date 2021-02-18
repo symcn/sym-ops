@@ -1,12 +1,19 @@
 package ops
 
 import (
+	"context"
+	"net/http"
+	"strings"
+
 	"github.com/spf13/cobra"
 	workloadv1beta1 "github.com/symcn/sym-ops/api/v1beta1"
+	"github.com/symcn/sym-ops/controllers/appset"
 	"github.com/symcn/sym-ops/pkg/clustermanager"
+	"github.com/symcn/sym-ops/pkg/metrics"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -30,11 +37,32 @@ func ControllerCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			PrintFlags(cmd.Flags())
 
-			_, err := clustermanager.NewMingleClient(clustermanager.SimpleClientOptions(), clustermanager.DefaultOptions(scheme, opt.Qos, opt.Burst))
+			metaCli, err := clustermanager.NewMingleClient(clustermanager.DefaultClusterCfgInfo("meta"), clustermanager.DefaultOptions(scheme, opt.Qos, opt.Burst))
 			if err != nil {
 				return err
 			}
+			appset.MasterFeature(metaCli)
 
+			server := &http.Server{
+				Addr: ":8080",
+			}
+			mux := http.NewServeMux()
+			metrics.RegisterHTTPHandler(func(pattern string, handler http.Handler) {
+				mux.Handle(pattern, handler)
+			})
+			server.Handler = mux
+			go func() {
+				if err := server.ListenAndServe(); err != nil {
+					if !strings.EqualFold(err.Error(), "http: Server closed") {
+						klog.Error(err)
+					}
+				}
+			}()
+
+			ctx := context.TODO()
+			if err = metaCli.Start(ctx); err != nil {
+				klog.Error(err)
+			}
 			return nil
 		},
 	}
@@ -48,6 +76,9 @@ func ControllerCmd() *cobra.Command {
 	controllerCmd.PersistentFlags().BoolVar(&opt.LeaderElection, "leader", opt.LeaderElection, "enable leader election")
 	controllerCmd.PersistentFlags().StringVar(&opt.LeaderElectionNamespace, "leader-ns", opt.LeaderElectionNamespace, "leader election with namespace")
 	controllerCmd.PersistentFlags().StringVar(&opt.LeaderElectionID, "leader-id", opt.LeaderElectionID, "leader election with id")
+
+	controllerCmd.PersistentFlags().BoolVar(&opt.Master, "master", opt.Master, "enable master feature")
+	controllerCmd.PersistentFlags().BoolVar(&opt.Worker, "worker", opt.Worker, "enable worker feature")
 
 	controllerCmd.PersistentFlags().DurationVar(&opt.SyncPeriod, "sync-period", opt.SyncPeriod, "sync period determines the minimum frequency at which watched resource are reconciled")
 	controllerCmd.PersistentFlags().DurationVar(&opt.HealthCheckInterval, "health-interval", opt.HealthCheckInterval, "Kubernetes connected health check interval, 0 means close health check")
