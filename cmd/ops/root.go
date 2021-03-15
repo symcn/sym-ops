@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // GetRootCmd returns the root of the cobra command-tree.
@@ -16,7 +16,12 @@ func GetRootCmd() *cobra.Command {
 		Long:         "sym-ops use declarative approach, dvelop project in multiple Kubernetes clusters.",
 		SilenceUsage: true,
 	}
+	// Make sure that klog logging variables are initialized so that we can
+	// update them from this file.
+	klog.InitFlags(flag.CommandLine)
+
 	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
+
 	rootCmd.AddCommand(ControllerCmd())
 	rootCmd.AddCommand(VersionCmd())
 

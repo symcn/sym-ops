@@ -26,7 +26,6 @@ Platform:     %s
 
 // VersionCmd version component
 func VersionCmd() *cobra.Command {
-
 	versionCmd := &cobra.Command{
 		Use:  "version",
 		Long: "Print version/build info",

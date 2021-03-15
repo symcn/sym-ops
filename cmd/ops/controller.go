@@ -1,35 +1,14 @@
 package ops
 
 import (
-	"context"
-	"net/http"
-	"strings"
-
 	"github.com/spf13/cobra"
-	workloadv1beta1 "github.com/symcn/sym-ops/api/v1beta1"
-	"github.com/symcn/sym-ops/controllers/appset"
-	"github.com/symcn/sym-ops/pkg/clustermanager"
-	"github.com/symcn/sym-ops/pkg/metrics"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/klog/v2"
+	"github.com/symcn/sym-ops/controllers"
+	"github.com/symcn/sym-ops/pkg/types"
 )
-
-var (
-	scheme = runtime.NewScheme()
-)
-
-func init() {
-	clientgoscheme.AddToScheme(scheme)
-	apiextensionsv1beta1.AddToScheme(scheme)
-	workloadv1beta1.AddToScheme(scheme)
-}
 
 // ControllerCmd controller component
 func ControllerCmd() *cobra.Command {
-	opt := defaultCtrlOption()
-
+	opt := controllers.DefaultOptions()
 	controllerCmd := &cobra.Command{
 		Use:   "controller",
 		Short: "Start controller component.",
@@ -37,52 +16,38 @@ func ControllerCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			PrintFlags(cmd.Flags())
 
-			metaCli, err := clustermanager.NewMingleClient(clustermanager.DefaultClusterCfgInfo("meta"), clustermanager.DefaultOptions(scheme, opt.Qos, opt.Burst))
+			ctrl, err := controllers.NewControllers(opt)
 			if err != nil {
 				return err
 			}
-			appset.MasterFeature(metaCli)
-
-			server := &http.Server{
-				Addr: ":8080",
-			}
-			mux := http.NewServeMux()
-			metrics.RegisterHTTPHandler(func(pattern string, handler http.Handler) {
-				mux.Handle(pattern, handler)
-			})
-			server.Handler = mux
-			go func() {
-				if err := server.ListenAndServe(); err != nil {
-					if !strings.EqualFold(err.Error(), "http: Server closed") {
-						klog.Error(err)
-					}
-				}
-			}()
-
-			ctx := context.TODO()
-			if err = metaCli.Start(ctx); err != nil {
-				klog.Error(err)
-			}
-			return nil
+			return ctrl.Start()
 		},
 	}
 
+	// Controller config
 	controllerCmd.PersistentFlags().IntVar(&opt.Threadiness, "threadiness", opt.Threadiness, "the max goroutine for Reconcile")
 	controllerCmd.PersistentFlags().IntVar(&opt.MetricPort, "metric-port", opt.MetricPort, "metric listener port, 0 means close metric")
 	controllerCmd.PersistentFlags().IntVar(&opt.PprofPort, "pprof-port", opt.PprofPort, "pprof listener port, 0 means close pprof")
-	controllerCmd.PersistentFlags().IntVar(&opt.Qos, "qos", opt.Qos, "maximum QPS to the master from this client")
-	controllerCmd.PersistentFlags().IntVar(&opt.Burst, "burst", opt.Burst, "maximum burst for throttle")
-
-	controllerCmd.PersistentFlags().BoolVar(&opt.LeaderElection, "leader", opt.LeaderElection, "enable leader election")
-	controllerCmd.PersistentFlags().StringVar(&opt.LeaderElectionNamespace, "leader-ns", opt.LeaderElectionNamespace, "leader election with namespace")
-	controllerCmd.PersistentFlags().StringVar(&opt.LeaderElectionID, "leader-id", opt.LeaderElectionID, "leader election with id")
-
 	controllerCmd.PersistentFlags().BoolVar(&opt.Master, "master", opt.Master, "enable master feature")
 	controllerCmd.PersistentFlags().BoolVar(&opt.Worker, "worker", opt.Worker, "enable worker feature")
 
-	controllerCmd.PersistentFlags().DurationVar(&opt.SyncPeriod, "sync-period", opt.SyncPeriod, "sync period determines the minimum frequency at which watched resource are reconciled")
-	controllerCmd.PersistentFlags().DurationVar(&opt.HealthCheckInterval, "health-interval", opt.HealthCheckInterval, "Kubernetes connected health check interval, 0 means close health check")
-	controllerCmd.PersistentFlags().DurationVar(&opt.ExecTimeout, "exec-timeout", opt.ExecTimeout, "exec with timeout")
+	// ClusterManagerOptions config
+	controllerCmd.PersistentFlags().IntVar(&opt.ClusterManagerOptions.QPS, "qps", opt.ClusterManagerOptions.QPS, "maximum QPS to the master from this client")
+	controllerCmd.PersistentFlags().IntVar(&opt.ClusterManagerOptions.Burst, "burst", opt.ClusterManagerOptions.Burst, "maximum burst for throttle")
+	controllerCmd.PersistentFlags().BoolVar(&opt.ClusterManagerOptions.LeaderElection, "leader", opt.ClusterManagerOptions.LeaderElection, "enable leader election")
+	controllerCmd.PersistentFlags().StringVar(&opt.ClusterManagerOptions.LeaderElectionNamespace, "leader-ns", opt.ClusterManagerOptions.LeaderElectionNamespace, "leader election with namespace")
+	controllerCmd.PersistentFlags().StringVar(&opt.ClusterManagerOptions.LeaderElectionID, "leader-id", opt.ClusterManagerOptions.LeaderElectionID, "leader election with id")
+	controllerCmd.PersistentFlags().DurationVar(&opt.ClusterManagerOptions.SyncPeriod, "sync-period", opt.ClusterManagerOptions.SyncPeriod, "sync period determines the minimum frequency at which watched resource are reconciled")
+	controllerCmd.PersistentFlags().DurationVar(&opt.ClusterManagerOptions.HealthCheckInterval, "health-interval", opt.ClusterManagerOptions.HealthCheckInterval, "Kubernetes connected health check interval, 0 means close health check")
+	controllerCmd.PersistentFlags().DurationVar(&opt.ClusterManagerOptions.ExecTimeout, "exec-timeout", opt.ClusterManagerOptions.ExecTimeout, "exec with timeout")
+
+	// Advdeployment config
+	controllerCmd.PersistentFlags().Int32Var(&opt.AdvConfig.RevisionHistoryLimit, "revision-limit", opt.AdvConfig.RevisionHistoryLimit, "revision history limit")
+	controllerCmd.PersistentFlags().Int32Var(&opt.AdvConfig.ProgressDeadlineSeconds, "progress-deadline-seconds", opt.AdvConfig.ProgressDeadlineSeconds, "progress-deadline-seconds")
+
+	// namespace filter
+	controllerCmd.PersistentFlags().StringArrayVar(&types.FilterNamespaceAppset, "filter-namespace-master", types.FilterNamespaceAppset, "master watch resource filter namespace")
+	controllerCmd.PersistentFlags().StringArrayVar(&types.FilterNamespaceAdvdeployment, "filter-namespace-worker", types.FilterNamespaceAdvdeployment, "worker watch resource filter namespace")
 
 	return controllerCmd
 }

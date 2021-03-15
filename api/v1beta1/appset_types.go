@@ -94,7 +94,7 @@ type TargetCluster struct {
 	Name string `json:"name,omitempty"`
 
 	// exp: zone, rack
-	Mata map[string]string `json:"meta,omitempty"`
+	Meta map[string]string `json:"meta,omitempty"`
 
 	// Contains the details of each subset. Each element in this array represents one subset
 	// which will be provisioned and managed by UnitedDeployment.
