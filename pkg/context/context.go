@@ -14,7 +14,9 @@ type wrapperCtx struct {
 
 func (c *wrapperCtx) Value(key interface{}) interface{} {
 	if contextKey, ok := key.(types.ContextKey); ok {
-		return c.builtin[contextKey]
+		if contextKey >= 0 && contextKey < types.ContextKeyEnd {
+			return c.builtin[contextKey]
+		}
 	}
 	return c.Context.Value(key)
 }
@@ -34,7 +36,7 @@ func WithValue(parent context.Context, key types.ContextKey, value interface{}) 
 // GetValue returns result with key
 func GetValue(ctx context.Context, key types.ContextKey) interface{} {
 	if v, ok := ctx.(*wrapperCtx); ok {
-		return v.builtin[key]
+		return v.Value(key)
 	}
 	return ctx.Value(key)
 }
@@ -44,7 +46,7 @@ func GetValue(ctx context.Context, key types.ContextKey) interface{} {
 func GetValueString(ctx context.Context, key types.ContextKey) string {
 	var val interface{}
 	if v, ok := ctx.(*wrapperCtx); ok {
-		val = v.builtin[key]
+		val = v.Value(key)
 	} else {
 		val = ctx.Value(key)
 	}
@@ -64,7 +66,7 @@ func GetValueString(ctx context.Context, key types.ContextKey) string {
 func GetValueBool(ctx context.Context, key types.ContextKey) bool {
 	var val interface{}
 	if v, ok := ctx.(*wrapperCtx); ok {
-		val = v.builtin[key]
+		val = v.Value(key)
 	} else {
 		val = ctx.Value(key)
 	}
@@ -84,7 +86,7 @@ func GetValueBool(ctx context.Context, key types.ContextKey) bool {
 func GetValueInt64(ctx context.Context, key types.ContextKey) int64 {
 	var val interface{}
 	if v, ok := ctx.(*wrapperCtx); ok {
-		val = v.builtin[key]
+		val = v.Value(key)
 	} else {
 		val = ctx.Value(key)
 	}
