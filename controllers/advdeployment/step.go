@@ -8,7 +8,7 @@ import (
 
 	workloadv1beta1 "github.com/symcn/sym-ops/api/v1beta1"
 	symctx "github.com/symcn/sym-ops/pkg/context"
-	"github.com/symcn/sym-ops/pkg/helm/object"
+	"github.com/symcn/sym-ops/pkg/helm"
 	"github.com/symcn/sym-ops/pkg/resource"
 	"github.com/symcn/sym-ops/pkg/types"
 	"github.com/symcn/sym-ops/pkg/utils"
@@ -73,12 +73,11 @@ func (w *worker) stepApplyResources(ctx context.Context, req ktypes.NamespacedNa
 	}()
 
 	var (
-		objects object.K8sObjects
-		objs    object.K8sObjects
+		objects []helm.K8sObject
 	)
 	for _, podSet := range adv.Spec.Topology.PodSets {
 		_, _, rawChart := getCharInfo(podSet, adv)
-		objs, err = object.RenderTemplate(rawChart, podSet.Name, adv.Namespace, podSet.RawValues)
+		objs, err := helm.RenderTemplate(rawChart, podSet.Name, adv.Namespace, podSet.RawValues)
 		if err != nil {
 			return err
 		}
@@ -96,23 +95,23 @@ func (w *worker) stepApplyResources(ctx context.Context, req ktypes.NamespacedNa
 	)
 	for _, obj := range objects {
 		yaml := obj.YAML2String()
-		klog.V(5).Infof("%s %s/%s yaml: %s", obj.Kind, obj.Namespace, obj.Name, yaml)
+		klog.V(5).Infof("%s %s/%s yaml: %s", obj.GroupKind().Kind, obj.GetNamespace(), obj.GetName(), yaml)
 
-		covert, ok := convertFactory[obj.Kind]
+		covert, ok := convertFactory[obj.GroupKind().Kind]
 		if !ok {
-			return fmt.Errorf("Apply resource %s %s/%s unsupport type", obj.Kind, obj.Namespace, obj.Name)
+			return fmt.Errorf("Apply resource %s %s/%s unsupport type", obj.GroupKind().Kind, obj.GetNamespace(), obj.GetName())
 		}
 		rtobj, opt, replicas, err = covert(obj.UnstructuredObject(), isHpaEnable)
 		if err != nil {
 			return err
 		}
-		ownerRes = append(ownerRes, getFormattedName(obj.Kind, rtobj))
+		ownerRes = append(ownerRes, getFormattedName(obj.GroupKind().Kind, rtobj))
 		changed, err = resource.Reconcile(ctx, w.currentCli, rtobj, opt)
 		if err != nil {
 			symctx.WithValue(ctx, types.ContextKeyStepStop, true)
 			return fmt.Errorf("Apply resource failed: %v", err)
 		}
-		if obj.Kind == types.DeploymentKind || obj.Kind == types.StatefulSetKind {
+		if obj.GroupKind().Kind == types.DeploymentKind || obj.GroupKind().Kind == types.StatefulSetKind {
 			err = w.applyHorizontalPodAutoscaler(ctx, adv, obj, types.HorizontalAPIVersion, replicas)
 			if err != nil {
 				klog.Error(err)
@@ -130,21 +129,21 @@ func (w *worker) stepApplyResources(ctx context.Context, req ktypes.NamespacedNa
 	return nil
 }
 
-func (w *worker) applyHorizontalPodAutoscaler(ctx context.Context, adv *workloadv1beta1.AdvDeployment, obj *object.K8sObject, apiVersion string, currentReplicas int32) error {
+func (w *worker) applyHorizontalPodAutoscaler(ctx context.Context, adv *workloadv1beta1.AdvDeployment, obj helm.K8sObject, apiVersion string, currentReplicas int32) error {
 	enable := getHpaSpecEnable(adv.Annotations)
 	if !enable || currentReplicas == 0 {
-		klog.V(5).Infof("Hpa not enable or object %s/%s replicas is zero", obj.Namespace, obj.Name)
+		klog.V(5).Infof("Hpa not enable or object %s/%s replicas is zero", obj.GetNamespace(), obj.GetName())
 		hpa := &v2beta2.HorizontalPodAutoscaler{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      obj.Name,
-				Namespace: obj.Namespace,
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
 			},
 		}
 		resource.Reconcile(ctx, w.currentCli, hpa, resource.Option{DesiredState: resource.DesiredStateAbsent})
 		return nil
 	}
 
-	metrics := parseMetrics(adv.Annotations, obj.Name)
+	metrics := parseMetrics(adv.Annotations, obj.GetName())
 	if len(metrics) == 0 {
 		metrics = w.getDefaultMetric()
 	}
@@ -155,18 +154,18 @@ func (w *worker) applyHorizontalPodAutoscaler(ctx context.Context, adv *workload
 			APIVersion: "autoscaling/v2beta2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      obj.Name,
-			Namespace: obj.Namespace,
+			Name:      obj.GetName(),
+			Namespace: obj.GetNamespace(),
 			Labels: map[string]string{
 				"app":                        adv.Name,
-				"app.kubernetes.io/instance": obj.Name,
+				"app.kubernetes.io/instance": obj.GetName(),
 			},
 		},
 		Spec: v2beta2.HorizontalPodAutoscalerSpec{
 			ScaleTargetRef: v2beta2.CrossVersionObjectReference{
 				APIVersion: apiVersion,
-				Kind:       obj.Kind,
-				Name:       obj.Name,
+				Kind:       obj.GroupKind().Kind,
+				Name:       obj.GetName(),
 			},
 			Metrics:     metrics,
 			MinReplicas: &currentReplicas,
