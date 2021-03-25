@@ -8,6 +8,9 @@ import (
 
 // RemoveSliceString remove slice unexpect key
 func RemoveSliceString(slice []string, s string) []string {
+	if slice == nil {
+		return nil
+	}
 	result := make([]string, 0, len(slice))
 	for _, item := range slice {
 		if item == s {

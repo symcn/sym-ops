@@ -26,6 +26,13 @@ var (
 // deepequal finalizer and labels
 // filter annotations and then deepequal annotatins
 func ObjecteMetaEqual(obj1 metav1.Object, obj2 metav1.Object) bool {
+	if obj1 == nil && obj2 == nil {
+		return true
+	}
+	if obj1 == nil || obj2 == nil {
+		return false
+	}
+
 	// finalizer
 	if !reflect.DeepEqual(obj1.GetFinalizers(), obj2.GetFinalizers()) {
 		klog.V(4).Infof("Object %s/%s finalizer different.", obj1.GetNamespace(), obj1.GetName())
