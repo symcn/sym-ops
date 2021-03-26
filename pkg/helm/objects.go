@@ -13,11 +13,6 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var (
-	// YAMLSeparator is a separator for multi-document YAML files.
-	YAMLSeparator = "\n---\n"
-)
-
 // K8sObject is an in-memory representation of a k8s object, used for moving between different representations
 // (Unstructured, JSON, YAML) with cached rendering.
 type K8sObject interface {

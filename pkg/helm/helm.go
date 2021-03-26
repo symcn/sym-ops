@@ -17,7 +17,7 @@ func RenderTemplate(chartPkg []byte, rlsName, ns string, overrideValue string) (
 	if err != nil {
 		return nil, err
 	}
-	return buildK8sObjectWithRenderedTpls(renderedTpls)
+	return buildK8sObjectWithRenderedTpls(renderedTpls), nil
 }
 
 func renderTpls(chartPkg []byte, rlsName, ns string, overrideValue string) (renderedTpls map[string]string, err error) {
@@ -27,7 +27,7 @@ func renderTpls(chartPkg []byte, rlsName, ns string, overrideValue string) (rend
 	}
 	chrtVals, err := chartutil.ReadValues([]byte(overrideValue))
 	if err != nil {
-		return nil, fmt.Errorf("read overridevalue has an error: %v", err)
+		return nil, fmt.Errorf("read overridevalue %s has an error: %v", overrideValue, err)
 	}
 	opts := chartutil.ReleaseOptions{
 		Name:      rlsName,
@@ -47,22 +47,23 @@ func renderTpls(chartPkg []byte, rlsName, ns string, overrideValue string) (rend
 	return renderedTpls, nil
 }
 
-func buildK8sObjectWithRenderedTpls(renderedTpls map[string]string) ([]K8sObject, error) {
+func buildK8sObjectWithRenderedTpls(renderedTpls map[string]string) []K8sObject {
 	var objects []K8sObject
-	for _, tpl := range renderedTpls {
+	for name, tpl := range renderedTpls {
 		yaml := removeNonYAMLLines(tpl)
 		if yaml == "" {
 			continue
 		}
 		o, err := ParseYAML2K8sObject([]byte(yaml))
 		if err != nil {
-			klog.Errorf("Failed to parse yaml %s to k8s object: %v", yaml, err)
+			// !import some text parse error must skip it. such as:templates/NOTES.txt
+			klog.Errorf("Failed to parse %s yaml %s to k8s object: %v", name, yaml, err)
 			continue
 		}
 		objects = append(objects, o)
 		klog.V(5).Infof("Render k8s object %s %s/%s success", o.GroupKind().Kind, o.GetNamespace(), o.GetName())
 	}
-	return objects, nil
+	return objects
 }
 
 func removeNonYAMLLines(yamlStr string) string {
