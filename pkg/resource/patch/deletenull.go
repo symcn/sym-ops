@@ -9,6 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog/v2"
 )
 
 func init() {
@@ -45,11 +46,7 @@ func DeleteNullInJson(jsonBytes []byte) ([]byte, map[string]interface{}, error) 
 		return nil, nil, fmt.Errorf("counld not unmarshal json patch: %v", err)
 	}
 
-	filteredMap, err := deleteNullInObj(patchMap)
-	if err != nil {
-		return nil, nil, fmt.Errorf("counld not delete null values from patch map: %v", err)
-	}
-
+	filteredMap := deleteNullInObj(patchMap)
 	o, err := json.ConfigCompatibleWithStandardLibrary.Marshal(filteredMap)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not marshal filtered patch map: %v", err)
@@ -57,8 +54,7 @@ func DeleteNullInJson(jsonBytes []byte) ([]byte, map[string]interface{}, error) 
 	return o, filteredMap, nil
 }
 
-func deleteNullInObj(m map[string]interface{}) (map[string]interface{}, error) {
-	var err error
+func deleteNullInObj(m map[string]interface{}) map[string]interface{} {
 	filterdMap := make(map[string]interface{})
 
 	for k, v := range m {
@@ -68,11 +64,9 @@ func deleteNullInObj(m map[string]interface{}) (map[string]interface{}, error) {
 
 		switch typVal := v.(type) {
 		case []interface{}:
-			slice, err := deleteNullInSlice(typVal)
-			if err != nil {
-				return nil, err
+			if len(typVal) > 0 {
+				filterdMap[k] = deleteNullInSlice(typVal)
 			}
-			filterdMap[k] = slice
 		case string, float64, bool, int64, nil:
 			filterdMap[k] = typVal
 		case map[string]interface{}:
@@ -82,23 +76,56 @@ func deleteNullInObj(m map[string]interface{}) (map[string]interface{}, error) {
 			}
 
 			var filteredSubMap map[string]interface{}
-			filteredSubMap, err = deleteNullInObj(typVal)
-			if err != nil {
-				return nil, err
-			}
+			filteredSubMap = deleteNullInObj(typVal)
 			if len(filteredSubMap) != 0 {
 				filterdMap[k] = filteredSubMap
 			}
 		default:
-			return nil, fmt.Errorf("unknown type: %v", reflect.TypeOf(typVal))
+			filterdMap[k] = typVal
 		}
 	}
-	return filterdMap, nil
+	return filterdMap
+}
+
+func deleteNullInSlice(m []interface{}) []interface{} {
+	filteredSlice := make([]interface{}, 0, len(m))
+
+	for _, v := range m {
+		if v == nil || isZero(reflect.ValueOf(v)) {
+			continue
+		}
+
+		switch typVal := v.(type) {
+		case []interface{}:
+			if len(typVal) > 0 {
+				filteredSlice = append(filteredSlice, deleteNullInSlice(typVal)...)
+			}
+		case string, float64, bool, int64, nil:
+			filteredSlice = append(filteredSlice, v)
+		case map[string]interface{}:
+			filteredSlice = append(filteredSlice, deleteNullInObj(typVal))
+		default:
+			filteredSlice = append(filteredSlice, v)
+		}
+	}
+	return filteredSlice
 }
 
 func isZero(v reflect.Value) bool {
+	if !v.IsValid() {
+		return true
+	}
+
+	defer func() {
+		if err := recover(); err != nil {
+			// if have panic return not zero
+			klog.Errorf("judge isZero panic:%v", err)
+		}
+	}()
+
 	switch v.Kind() {
-	case reflect.Float64, reflect.Int64:
+	case reflect.Float64, reflect.Int64, reflect.Bool:
+		// just use it with json result, only have float64、int64 and bool
 		return false
 	case reflect.Func, reflect.Map, reflect.Slice:
 		return v.IsNil()
@@ -118,36 +145,6 @@ func isZero(v reflect.Value) bool {
 		z := reflect.Zero(v.Type())
 		return v.Interface() == z.Interface()
 	}
-}
-
-func deleteNullInSlice(m []interface{}) ([]interface{}, error) {
-	filteredSlice := make([]interface{}, len(m))
-
-	for i, v := range m {
-		if v == nil {
-			continue
-		}
-
-		switch typVal := v.(type) {
-		case []interface{}:
-			filteredSubSlice, err := deleteNullInSlice(typVal)
-			if err != nil {
-				return nil, fmt.Errorf("counld not delete null values from subslice: %v", err)
-			}
-			filteredSlice[i] = filteredSubSlice
-		case string, float64, bool, int64, nil:
-			filteredSlice[i] = v
-		case map[string]interface{}:
-			filteredMap, err := deleteNullInObj(typVal)
-			if err != nil {
-				return nil, fmt.Errorf("could not delete null values from sub map: %v", err)
-			}
-			filteredSlice[i] = filteredMap
-		default:
-			return nil, fmt.Errorf("unknown type: %v", reflect.TypeOf(typVal))
-		}
-	}
-	return filteredSlice, nil
 }
 
 func IgnoreStatusFields() CalculateOption {
