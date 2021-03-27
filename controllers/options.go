@@ -3,12 +3,14 @@ package controllers
 import (
 	"time"
 
+	"github.com/symcn/api"
 	"github.com/symcn/pkg/clustermanager"
 	workloadv1beta1 "github.com/symcn/sym-ops/api/v1beta1"
 	"github.com/symcn/sym-ops/controllers/advdeployment"
 	"github.com/symcn/sym-ops/pkg/types"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 )
 
 func init() {
@@ -34,8 +36,15 @@ type Options struct {
 
 // DefaultOptions default controllers options
 func DefaultOptions() *Options {
+	opt := clustermanager.DefaultOptionsWithScheme(types.Scheme)
+	opt.SetKubeRestConfigFnList = []api.SetKubeRestConfig{
+		func(cfg *rest.Config) {
+			cfg.UserAgent = "sym-ops-controller"
+		},
+	}
+
 	return &Options{
-		ClusterManagerOptions: clustermanager.DefaultOptionsWithScheme(types.Scheme),
+		ClusterManagerOptions: opt,
 		Threadiness:           1,
 		GotInterval:           time.Second * 1,
 		MetricPort:            9090,
