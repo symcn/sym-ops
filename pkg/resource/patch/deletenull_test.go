@@ -26,8 +26,7 @@ func TestIsZero(t *testing.T) {
 		},
 		{
 			name:  "empty string",
-			input: "",
-			want:  true,
+			input: "", want: true,
 		},
 		{
 			name:  "zero int64",
@@ -139,10 +138,9 @@ func TestDeleteNullInObj(t *testing.T) {
 				"struct":           struct{ name string }{name: "name"},
 			},
 			want: map[string]interface{}{
-				"float64":   float64(0.0),
-				"bool":      false,
-				"int64":     int64(1),
-				"empty map": map[string]interface{}{},
+				"float64": float64(0.0),
+				"bool":    false,
+				"int64":   int64(1),
 				"map": map[string]interface{}{
 					"a": "b",
 				},
@@ -239,10 +237,39 @@ func TestDeleteNullInJSON(t *testing.T) {
 		},
 		{
 			name:  "json have null string struct slice",
-			input: []byte(`{"a":"","b":[],"c":{}}`),
-			want1: []byte(`{"c":{}}`),
+			input: []byte(`{"a":"","b":[],"c":{},"d":{"a":1,"b":"2"}}`),
+			want1: []byte(`{"d":{"a":1,"b":"2"}}`),
 			want2: map[string]interface{}{
-				"c": map[string]interface{}{},
+				"d": map[string]interface{}{
+					"a": float64(1),
+					"b": "2",
+				},
+			},
+			isErr: false,
+		},
+		{
+			name:  "json have null string struct slice",
+			input: []byte(`{"a":[[],{},{"a":"","b":[],"c":[1],"d":{"a":"a"}}],"b":{"a":"a","b":[],"c":[1,2,3],"d":{}},"c":1,"d":1.2}`),
+			want1: []byte(`{"a":[{"c":[1],"d":{"a":"a"}}],"b":{"a":"a","c":[1,2,3]},"c":1,"d":1.2}`),
+			want2: map[string]interface{}{
+				"a": []interface{}{
+					map[string]interface{}{
+						"c": []interface{}{float64(1)},
+						"d": map[string]interface{}{
+							"a": "a",
+						},
+					},
+				},
+				"b": map[string]interface{}{
+					"a": "a",
+					"c": []interface{}{
+						float64(1),
+						float64(2),
+						float64(3),
+					},
+				},
+				"c": float64(1),
+				"d": float64(1.2),
 			},
 			isErr: false,
 		},
@@ -264,6 +291,7 @@ func TestDeleteNullInJSON(t *testing.T) {
 
 			if !reflect.DeepEqual(out1, ut.want1) || !reflect.DeepEqual(out2, ut.want2) {
 				t.Errorf("input(%s) \nwant got%s, %v\nbut got%s, %v", ut.input, ut.want1, ut.want2, out1, out2)
+				t.Error(reflect.DeepEqual(out1, ut.want1), reflect.DeepEqual(out2, ut.want2))
 			}
 		})
 	}

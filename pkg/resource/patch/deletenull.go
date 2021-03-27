@@ -71,7 +71,6 @@ func deleteNullInObj(m map[string]interface{}) map[string]interface{} {
 			filterdMap[k] = typVal
 		case map[string]interface{}:
 			if len(typVal) == 0 {
-				filterdMap[k] = typVal
 				continue
 			}
 
@@ -103,7 +102,9 @@ func deleteNullInSlice(m []interface{}) []interface{} {
 		case string, float64, bool, int64, nil:
 			filteredSlice = append(filteredSlice, v)
 		case map[string]interface{}:
-			filteredSlice = append(filteredSlice, deleteNullInObj(typVal))
+			if len(typVal) > 0 {
+				filteredSlice = append(filteredSlice, deleteNullInObj(typVal))
+			}
 		default:
 			filteredSlice = append(filteredSlice, v)
 		}
