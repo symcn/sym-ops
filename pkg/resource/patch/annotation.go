@@ -4,8 +4,11 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"runtime/debug"
 
 	json "github.com/json-iterator/go"
 	"github.com/symcn/sym-ops/pkg/types"
@@ -186,7 +189,16 @@ func unZipAnnotation(original []byte) ([]byte, error) {
 	return unzippedFileBytes, nil
 }
 
-func readZipFile(zf *zip.File) ([]byte, error) {
+func readZipFile(zf *zip.File) (data []byte, err error) {
+	if zf == nil {
+		return nil, errors.New("zip file is nil")
+	}
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("readZipFile error:\n%v\n%s", e, debug.Stack())
+		}
+	}()
+
 	f, err := zf.Open()
 	if err != nil {
 		return nil, err
