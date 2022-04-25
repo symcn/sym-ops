@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/symcn/api"
-	"github.com/symcn/pkg/clustermanager"
+	"github.com/symcn/pkg/clustermanager/client"
 	workloadv1beta1 "github.com/symcn/sym-ops/api/v1beta1"
 	"github.com/symcn/sym-ops/controllers/advdeployment"
 	"github.com/symcn/sym-ops/pkg/types"
@@ -21,7 +21,7 @@ func init() {
 
 // Options controllers options
 type Options struct {
-	ClusterManagerOptions *clustermanager.Options
+	ClusterManagerOptions *client.Options
 
 	Threadiness int
 	GotInterval time.Duration
@@ -36,7 +36,7 @@ type Options struct {
 
 // DefaultOptions default controllers options
 func DefaultOptions() *Options {
-	opt := clustermanager.DefaultOptionsWithScheme(types.Scheme)
+	opt := client.DefaultOptionsWithScheme(types.Scheme)
 	opt.SetKubeRestConfigFnList = []api.SetKubeRestConfig{
 		func(cfg *rest.Config) {
 			cfg.UserAgent = "sym-ops-controller"

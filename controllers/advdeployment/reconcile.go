@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/symcn/api"
-	"github.com/symcn/pkg/clustermanager"
+	"github.com/symcn/pkg/clustermanager/client"
 	"github.com/symcn/pkg/clustermanager/handler"
 	"github.com/symcn/pkg/clustermanager/predicate"
 	"github.com/symcn/pkg/clustermanager/workqueue"
@@ -28,7 +28,7 @@ type worker struct {
 }
 
 // WorkerFeature worker feature
-func WorkerFeature(currentCli api.MingleClient, threadiness int, gotInterval time.Duration, advConf *AdvConfig, server *utils.Server, opt *clustermanager.Options) error {
+func WorkerFeature(currentCli api.MingleClient, threadiness int, gotInterval time.Duration, advConf *AdvConfig, server *utils.Server, opt *client.Options) error {
 	if advConf == nil {
 		advConf = DefaultAdvConfig()
 	}
@@ -41,7 +41,11 @@ func WorkerFeature(currentCli api.MingleClient, threadiness int, gotInterval tim
 	w.registryStep()
 
 	// build queue
-	queue, err := workqueue.NewQueue(w, types.WorkerQueueName, threadiness, gotInterval)
+	qconf := workqueue.NewQueueConfig(w)
+	qconf.Name = types.WorkerQueueName
+	qconf.Threadiness = threadiness
+	qconf.GotInterval = gotInterval
+	queue, err := workqueue.Completed(qconf).NewQueue()
 	if err != nil {
 		return err
 	}

@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/symcn/api"
-	"github.com/symcn/pkg/clustermanager"
+	"github.com/symcn/pkg/clustermanager/client"
 	"github.com/symcn/pkg/metrics"
 	"github.com/symcn/sym-ops/controllers/advdeployment"
 	"github.com/symcn/sym-ops/controllers/appset"
@@ -29,7 +29,7 @@ func NewControllers(opt *Options) (*App, error) {
 		Options: opt,
 		server:  &utils.Server{},
 	}
-	currentCli, err := clustermanager.NewMingleClient(clustermanager.DefaultClusterCfgInfo(types.CurrentClusterName), app.ClusterManagerOptions)
+	currentCli, err := client.NewMingleClient(client.DefaultClusterCfgInfo(types.CurrentClusterName), app.ClusterManagerOptions)
 	if err != nil {
 		return nil, err
 	}

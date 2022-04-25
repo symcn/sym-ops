@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/symcn/api"
-	"github.com/symcn/pkg/clustermanager"
+	"github.com/symcn/pkg/clustermanager/client"
 	"github.com/symcn/pkg/clustermanager/configuration"
 	"github.com/symcn/pkg/clustermanager/handler"
 	"github.com/symcn/pkg/clustermanager/predicate"
@@ -29,14 +29,18 @@ type master struct {
 }
 
 // MasterFeature master feature
-func MasterFeature(currentCli api.MingleClient, threadiness int, gotInterval time.Duration, server *utils.Server, opt *clustermanager.Options) error {
+func MasterFeature(currentCli api.MingleClient, threadiness int, gotInterval time.Duration, server *utils.Server, opt *client.Options) error {
 	m := &master{
 		currentCli: currentCli,
 	}
 	m.registryStep()
 
 	// build queue
-	queue, err := workqueue.NewQueue(m, types.MasterQueueName, threadiness, gotInterval)
+	qconf := workqueue.NewQueueConfig(m)
+	qconf.Name = types.MasterQueueName
+	qconf.Threadiness = threadiness
+	qconf.GotInterval = gotInterval
+	queue, err := workqueue.Completed(qconf).NewQueue()
 	if err != nil {
 		return err
 	}
@@ -53,23 +57,29 @@ func MasterFeature(currentCli api.MingleClient, threadiness int, gotInterval tim
 	}
 	server.Add(queue)
 
+	// build multi client
+	mcc := client.NewMultiClientConfig()
 	// build multi cluster configuration manager
-	clusterCfgManager := configuration.NewClusterCfgManagerWithCM(
+	mcc.ClusterCfgManager = configuration.NewClusterCfgManagerWithCM(
 		currentCli.GetKubeInterface(),
 		types.MultiClusterCfgConfigmapNamespace,
 		types.MultiClusterCfgConfigmapLabels,
 		types.MultiClusterCfgConfigmapDataKey,
 		types.MultiClusterCfgConfigmapStatusKey,
 	)
-
-	// build multi client
-	multiCli, err := clustermanager.NewMultiMingleClient(clusterCfgManager, time.Second*10, opt)
+	mcc.RebuildInterval = time.Second * 10
+	mcc.Options = opt
+	cc, err := client.Complete(mcc)
+	if err != nil {
+		return err
+	}
+	multiCli, err := cc.New()
 	if err != nil {
 		return err
 	}
 
 	// registry each cluster watch resource
-	multiCli.RegistryBeforAfterHandler(func(cli api.MingleClient) error {
+	multiCli.RegistryBeforAfterHandler(func(ctx context.Context, cli api.MingleClient) error {
 		// watch advdeployment
 		err := cli.Watch(&workloadv1beta1.AdvDeployment{},
 			queue,
