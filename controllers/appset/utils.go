@@ -61,7 +61,7 @@ func (p *predicateSpec) Delete(obj rtclient.Object) bool {
 func (p *predicateSpec) Update(oldObj, newObj rtclient.Object) bool {
 	oldAppset := oldObj.(*workloadv1beta1.AppSet)
 	newAppset := newObj.(*workloadv1beta1.AppSet)
-	if equality.Semantic.DeepEqual(oldAppset.Spec, newAppset.Spec) && utils.ObjecteMetaEqual(oldAppset.GetObjectMeta(), newAppset.GetObjectMeta()) {
+	if equality.Semantic.DeepEqual(oldAppset.Spec, newAppset.Spec) && utils.ObjecteMetaEqual(oldAppset.GetObjectMeta(), newAppset.GetObjectMeta()) && newAppset.ObjectMeta.DeletionTimestamp.IsZero() {
 		return false
 	}
 	return true

@@ -12,7 +12,6 @@ import (
 	"github.com/symcn/pkg/clustermanager/predicate"
 	"github.com/symcn/pkg/clustermanager/workqueue"
 	workloadv1beta1 "github.com/symcn/sym-ops/api/v1beta1"
-	symctx "github.com/symcn/sym-ops/pkg/context"
 	"github.com/symcn/sym-ops/pkg/types"
 	"github.com/symcn/sym-ops/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
@@ -119,7 +118,7 @@ func (m *master) registryStep() {
 
 func (m *master) Reconcile(req ktypes.NamespacedName) (api.NeedRequeue, time.Duration, error) {
 	app := &workloadv1beta1.AppSet{}
-	ctx := symctx.WithValue(context.TODO(), types.ContextKeyStepStop, false)
+	// ctx := symctx.WithValue(context.TODO(), types.ContextKeyStepStop, false)
 
 	err := m.currentCli.Get(req, app)
 	if err != nil {
@@ -128,21 +127,23 @@ func (m *master) Reconcile(req ktypes.NamespacedName) (api.NeedRequeue, time.Dur
 			m.deleteAllClusterAdvdeployment(req, nil)
 			return api.Done, 0, nil
 		}
-		return api.Done, 0, fmt.Errorf("Get AppSet %s failed: %v", req, err)
+		return api.Done, 0, fmt.Errorf("get AppSet %s failed: %v", req, err)
 	}
+	klog.Infof("--------------> Reconcile %s, isDelete:%t", req.String(), !app.ObjectMeta.DeletionTimestamp.IsZero())
+	return api.Done, 0, nil
 
-	for _, stepFunc := range m.stepList {
-		err = stepFunc(ctx, req, app)
-		if symctx.GetValueBool(ctx, types.ContextKeyStepStop) {
-			// no need exec next step
-			break
-		}
-		// if continue, just print error info
-		if err != nil {
-			klog.Error(err)
-		}
-	}
+	// for _, stepFunc := range m.stepList {
+	//     err = stepFunc(ctx, req, app)
+	//     if symctx.GetValueBool(ctx, types.ContextKeyStepStop) {
+	//         // no need exec next step
+	//         break
+	//     }
+	//     // if continue, just print error info
+	//     if err != nil {
+	//         klog.Error(err)
+	//     }
+	// }
 
 	// if not continue, the err will return
-	return api.NeedRequeue(symctx.GetValueBool(ctx, types.ContextKeyNeedRequeue)), time.Duration(symctx.GetValueInt64(ctx, types.ContextKeyRequeueAfter)), err
+	// return api.NeedRequeue(symctx.GetValueBool(ctx, types.ContextKeyNeedRequeue)), time.Duration(symctx.GetValueInt64(ctx, types.ContextKeyRequeueAfter)), err
 }
